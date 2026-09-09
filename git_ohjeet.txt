@@ -1,10 +1,18 @@
-# Get TAU's new exercises
+git switch main
+git pull
 git fetch upstream
 git merge upstream/main
 
-# Work on exercises
+git switch -c NIMI/exercise-X
+
+# work...
 git add .
 git commit -m "Complete exercise X"
+git push -u origin NIMI/exercise-X
 
-# Submit/save to your repo
-git push origin main
+# Sitte ku on valmise
+git switch main
+git pull
+git merge NIMI/exercise-X
+git push
+git branch -d NIMI/exercise-X

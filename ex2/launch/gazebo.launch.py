@@ -23,7 +23,12 @@ def generate_launch_description():
 
     # RViz config file
     rviz_config = PathJoinSubstitution(
-        [FindPackageShare("ex2"), "config", "default_config.rviz"]
+        [FindPackageShare("ex2"), "config", "rviz_config.rviz"]
+    )
+
+    # PlotJuggler config file
+    plotjuggler_config = PathJoinSubstitution(
+        [FindPackageShare("ex2"), "config", "plotjuggler_config.xml"]
     )
 
     # Find robot description file
@@ -38,6 +43,10 @@ def generate_launch_description():
             ),
             " ",
             "sim_ignition:=true",
+            " ",
+            "camera:=true",
+            " ",
+            "end_effector:=ft_sensor",
             " ",
             "simulation_controllers:=",
             joint_state_broadcaster_config,
@@ -105,7 +114,10 @@ def generate_launch_description():
         package="plotjuggler",
         executable="plotjuggler",
         output="screen",
-        arguments=[]
+        arguments=[
+            "-l",
+            plotjuggler_config
+        ]
     )
 
     # Bridge Gazebo topics to ROS
@@ -116,6 +128,7 @@ def generate_launch_description():
         arguments=[
             "/camera/image@sensor_msgs/msg/Image@ignition.msgs.Image",
             "/camera/camera_info@sensor_msgs/msg/CameraInfo@ignition.msgs.CameraInfo",
+            "/force_torque@geometry_msgs/msg/WrenchStamped@ignition.msgs.Wrench"
         ],
     )
 

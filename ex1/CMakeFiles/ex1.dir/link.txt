@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/ex1.dir/src/main.cpp.o CMakeFiles/ex1.dir/src/kinematics.cpp.o -o ex1  -lorocos-kdl /usr/lib/x86_64-linux-gnu/libpython3.10.so 

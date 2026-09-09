@@ -95,17 +95,17 @@
   <xacro:if value="$(arg sim_ignition)">
     <!-- Force torque sensor plugin -->
     <xacro:if value="${end_effector == 'ft_sensor'}">
-      <gazebo reference=" TODO ">
-        <sensor name="force_torque_sensor" type=" TODO ">
+      <gazebo reference="$(arg arm_id)_sensor_joint">
+        <sensor name="fr3_ft_sensor_joint" type="force_torque">
           <update_rate>100.0</update_rate>
           <always_on>true</always_on>
-          <topic> TODO </topic>
+          <topic>force_torque</topic>
           <visualize>true</visualize>
-          <ignition_frame_id> TODO </ignition_frame_id>
-          <TODO>
+          <ignition_frame_id>child</ignition_frame_id>
+          <force_torque>
             <frame>child</frame>
             <measure_direction>parent_to_child</measure_direction>
-          </TODO>
+          </force_torque>
         </sensor>
       </gazebo>
     </xacro:if>

@@ -119,7 +119,7 @@ def launch_setup(context, *args, **kwargs):
     hand_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["hand_controller", "-c", "/controller_manager"],
+        arguments=["fr3_hand_controller", "-c", "/controller_manager"],
     )
     nodes_to_start.append(hand_controller_spawner)
 

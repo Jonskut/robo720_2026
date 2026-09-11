@@ -94,10 +94,11 @@ void TrajectoryPublisher::line_trajectory(KDL::Vector& tgt_pos, KDL::Twist& tgt_
 
     tgt_pos.x(pos_x); tgt_pos.y(pos_y); tgt_pos.z(pos_z);
 
-    /**
-     * TODO: Desired velocity
-     */
+    double vel_x = 0.0;
+    double vel_y = -0.1 * sin(0.5 * t);
+    double vel_z = 0.0;
 
+    tgt_vel.x(vel_x); tgt_vel.y(vel_y); tgt_vel.z(vel_z);
 }
 
 void TrajectoryPublisher::circle_trajectory(KDL::Vector& tgt_pos, KDL::Twist& tgt_vel, double t) {
@@ -108,16 +109,29 @@ void TrajectoryPublisher::circle_trajectory(KDL::Vector& tgt_pos, KDL::Twist& tg
 
     tgt_pos.x(pos_x); tgt_pos.y(pos_y); tgt_pos.z(pos_z);
 
-    /**
-     * TODO: Desired velocity
-     */
+    double vel_x = 0.0;
+    double vel.y = -0.05 * sin(0.5 * t);
+    double vel.z = 0.05 * cos(0.5 * t);
 
+    tgt_vel.x(vel_x); tgt_vel.y(vel_y); tgt_vel.z(vel_z);
 }
 
-/**
- * TODO: implement a third type of trajectory here in the same format as
- *       line_trajectory and circle_trajectory above
- */
+void TrajectoryPublisher::triangle_trajectory(KDL::Vector& tgt_pos, KDL::Twist& tgt_vel, double t) {
+    // Desired pose
+    double w = 0.5;
+
+    double pos_x = 0.5 + 0.2 * cos(w * t);
+    double pos_y = 0.2 * sin(w * t) - 0.0222 * sin(3 * w * t);
+    double pos_z = 1.6;
+
+    tgt_pos.x(pos_x); tgt_pos.y(pos_y); tgt_pos.z(pos_z);
+
+    double vel_x = -0.1 * sin(w * t);
+    double vel_y = 0.2 * w * cos(w * t) - 0.0666 * w * cos(3 * w * t);
+    double vel_z = 0.0;
+
+    tgt_vel.x(vel_x); tgt_vel.y(vel_y); tgt_vel.z(vel_z);
+}
 
 // Subscriber callback for current joint states
 void TrajectoryPublisher::joint_state_callback(const sensor_msgs::msg::JointState& msg) {
@@ -140,6 +154,9 @@ void TrajectoryPublisher::timer_callback() {
     }
     else if (trajectory_type_ == "line") {
         line_trajectory(tgt_pos, tgt_vel, t);
+    }
+    else if (trajectory_type_ == "triangle") {
+        triangle_trajectory(tgt_pos, tgt_vel, t);
     }
     else {
         /**

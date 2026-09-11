@@ -96,12 +96,12 @@
     <!-- Force torque sensor plugin -->
     <xacro:if value="${end_effector == 'ft_sensor'}">
       <gazebo reference="$(arg arm_id)_sensor_joint">
-        <sensor name="fr3_ft_sensor_joint" type="force_torque">
+        <sensor name="force_torque_sensor" type="force_torque">
           <update_rate>100.0</update_rate>
           <always_on>true</always_on>
-          <topic>force_torque</topic>
+          <topic>/sensor_joint/force_torque</topic>
           <visualize>true</visualize>
-          <ignition_frame_id>child</ignition_frame_id>
+          <ignition_frame_id>$(arg arm_id)_ft_sensor_link</ignition_frame_id>
           <force_torque>
             <frame>child</frame>
             <measure_direction>parent_to_child</measure_direction>

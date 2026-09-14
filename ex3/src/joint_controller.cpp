@@ -41,9 +41,8 @@ controller_interface::return_type JointController::update(
         q_dot_cmd_(i) = feedback_term;
 
         if (use_feedforward_.load()) {
-            /**
-             * TODO: Implement feedforward
-             */
+            double feedback_term = qd_dot_(i) * (qd->positions.at(i) - q_(i));
+            q_dot_cmd_(i) = feedback_term;
         }
     }
 

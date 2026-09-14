@@ -181,7 +181,7 @@ void TrajectoryPublisher::timer_callback() {
 
         for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
             trajectory_point_msg_.positions.at(i) = q_(i);
-            trajectory_point_msg_.velocities.at(i) = 0.0;
+            trajectory_point_msg_.velocities.at(i) = qd_dot_(i);
         }
         trajectory_point_publisher_->publish(trajectory_point_msg_);
         return;

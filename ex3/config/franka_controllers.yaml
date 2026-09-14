@@ -29,4 +29,4 @@ joint_controller:
     state_interfaces:
       - position
       - velocity
-    # TODO: Add a gain variable here which you then read in the controller code.
+    controller_gain: 1.2

@@ -43,7 +43,7 @@ class TrajectoryPublisher : public rclcpp::Node
         void joint_state_callback(const sensor_msgs::msg::JointState& msg);
 
         // Runtime parameter for trajectory type selection
-        std::string end_effector_trajectory_{"line"};       // Trajectory parameter
+        std::string end_effector_trajectory_{"circle"};       // Trajectory parameter
         rclcpp::Node::OnSetParametersCallbackHandle::SharedPtr parameter_callback_handle_;
 
         // Publisher

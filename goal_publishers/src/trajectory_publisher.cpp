@@ -71,6 +71,7 @@ TrajectoryPublisher::TrajectoryPublisher()
     q_.resize(NUM_JOINTS);
     q_cmd_.resize(NUM_JOINTS);
     q_dot_cmd_.resize(NUM_JOINTS);
+    qd_dot_.resize(NUM_JOINTS);
 
     // Create subscriber
     joint_state_subscriber_ = this->create_subscription<sensor_msgs::msg::JointState>(
@@ -98,7 +99,7 @@ void TrajectoryPublisher::line_trajectory(KDL::Vector& tgt_pos, KDL::Twist& tgt_
     double vel_y = -0.1 * sin(0.5 * t);
     double vel_z = 0.0;
 
-    tgt_vel.x(vel_x); tgt_vel.y(vel_y); tgt_vel.z(vel_z);
+    tgt_vel.vel.x(vel_x); tgt_vel.vel.y(vel_y); tgt_vel.vel.z(vel_z);
 }
 
 void TrajectoryPublisher::circle_trajectory(KDL::Vector& tgt_pos, KDL::Twist& tgt_vel, double t) {
@@ -110,10 +111,10 @@ void TrajectoryPublisher::circle_trajectory(KDL::Vector& tgt_pos, KDL::Twist& tg
     tgt_pos.x(pos_x); tgt_pos.y(pos_y); tgt_pos.z(pos_z);
 
     double vel_x = 0.0;
-    double vel.y = -0.05 * sin(0.5 * t);
-    double vel.z = 0.05 * cos(0.5 * t);
+    double vel_y = -0.05 * sin(0.5 * t);
+    double vel_z = 0.05 * cos(0.5 * t);
 
-    tgt_vel.x(vel_x); tgt_vel.y(vel_y); tgt_vel.z(vel_z);
+    tgt_vel.vel.x(vel_x); tgt_vel.vel.y(vel_y); tgt_vel.vel.z(vel_z);
 }
 
 void TrajectoryPublisher::triangle_trajectory(KDL::Vector& tgt_pos, KDL::Twist& tgt_vel, double t) {
@@ -130,7 +131,7 @@ void TrajectoryPublisher::triangle_trajectory(KDL::Vector& tgt_pos, KDL::Twist& 
     double vel_y = 0.2 * w * cos(w * t) - 0.0666 * w * cos(3 * w * t);
     double vel_z = 0.0;
 
-    tgt_vel.x(vel_x); tgt_vel.y(vel_y); tgt_vel.z(vel_z);
+    tgt_vel.vel.x(vel_x); tgt_vel.vel.y(vel_y); tgt_vel.vel.z(vel_z);
 }
 
 // Subscriber callback for current joint states

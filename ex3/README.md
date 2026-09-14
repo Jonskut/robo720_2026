@@ -32,5 +32,6 @@ ros2 param set /joint_controller use_feedforward true
 To go back to feedback control, run:
 
 ```bash
-ros2 param set /joint_controller use_feedforward false
+ros2 param set /trajectory_publisher trajectory_type triangle
+(options = circle / line / triangle / test_error)
 ```

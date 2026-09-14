@@ -64,13 +64,8 @@ class JointController : public controller_interface::ControllerInterface {
         double elapsed_time_{0.0};
 
         // For writing the parameter on non-RT thread and reading it in RT update() loop
-        std::atomic<bool> use_feedforward_{false};
+        std::atomic<bool> use_feedforward_{false};          // Feedforward enable
         rclcpp::Node::OnSetParametersCallbackHandle::SharedPtr parameter_callback_handle_;
-
-        // Trajectory parameter
-        std::string use_feedforward_{false};
-        rclcpp::Node::OnSetParametersCallbackHandle::SharedPtr parameter_callback_handle_;
-
 
         // Subscriber callback 
         void joint_trajectory_callback(const std::shared_ptr<trajectory_msgs::msg::JointTrajectoryPoint> msg);

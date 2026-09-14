@@ -35,6 +35,10 @@ controller_interface::return_type JointController::update(
     // Read the current desired joint position
     auto qd = *rt_trajectory_buffer_.readFromRT();
 
+    for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
+        qd_dot_(i) = qd->velocities.at(i);
+    }
+    
     // Kinematic controller
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
         double feedback_term = controller_gain_ * (qd->positions.at(i) - q_(i));

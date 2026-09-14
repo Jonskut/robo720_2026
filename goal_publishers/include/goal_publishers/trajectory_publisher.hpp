@@ -42,6 +42,10 @@ class TrajectoryPublisher : public rclcpp::Node
         rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_subscriber_;
         void joint_state_callback(const sensor_msgs::msg::JointState& msg);
 
+        // Runtime parameter for trajectory type selection
+        std::string end_effector_trajectory_{"line"};       // Trajectory parameter
+        rclcpp::Node::OnSetParametersCallbackHandle::SharedPtr parameter_callback_handle_;
+
         // Publisher
         rclcpp::TimerBase::SharedPtr timer_;
         rclcpp::Publisher<trajectory_msgs::msg::JointTrajectoryPoint>::SharedPtr trajectory_point_publisher_;

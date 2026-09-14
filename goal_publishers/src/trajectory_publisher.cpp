@@ -33,6 +33,47 @@ TrajectoryPublisher::TrajectoryPublisher()
     root_link_ = this->get_parameter("root_link").as_string(); // from franka_controllers.yaml
     tip_link_ = this->get_parameter("tip_link").as_string();   // this too
     trajectory_type_ = this->declare_parameter("trajectory_type", "circle");
+    
+    parameter_callback_handle_ =
+        this->add_on_set_parameters_callback(
+            [this](const std::vector<rclcpp::Parameter>& parameters) {
+                rcl_interfaces::msg::SetParametersResult result;
+                result.successful = true;
+    
+                for (const auto& parameter : parameters) {
+                    if (parameter.get_name() != "trajectory_type") {
+                        continue;
+                    }
+    
+                    if (parameter.get_type() !=
+                        rclcpp::ParameterType::PARAMETER_STRING) {
+                        result.successful = false;
+                        result.reason = "trajectory_type must be a string";
+                        return result;
+                    }
+    
+                    const auto value = parameter.as_string();
+    
+                    if (value != "circle" &&
+                        value != "line" &&
+                        value != "triangle" &&
+                        value != "test_error") {
+                        result.successful = false;
+                        result.reason =
+                            "trajectory_type must be circle, line, triangle or test_error";
+                        return result;
+                    }
+    
+                    trajectory_type_ = value;
+    
+                    RCLCPP_INFO(
+                        this->get_logger(),
+                        "trajectory_type changed to '%s'",
+                        trajectory_type_.c_str());
+                }
+    
+                return result;
+            });
 
     // Check if parameter was given
     if (robot_description_.empty()) {
@@ -117,21 +158,49 @@ void TrajectoryPublisher::circle_trajectory(KDL::Vector& tgt_pos, KDL::Twist& tg
     tgt_vel.vel.x(vel_x); tgt_vel.vel.y(vel_y); tgt_vel.vel.z(vel_z);
 }
 
-void TrajectoryPublisher::triangle_trajectory(KDL::Vector& tgt_pos, KDL::Twist& tgt_vel, double t) {
-    // Desired pose
-    double w = 0.5;
+void TrajectoryPublisher::triangle_trajectory(
+    KDL::Vector& tgt_pos, KDL::Twist& tgt_vel, double t) {
+    const double angular_frequency = 0.5;
+    const double period = 2.0 * M_PI / angular_frequency;
+    const double segment_duration = period / 3.0;
 
-    double pos_x = 0.5 + 0.2 * cos(w * t);
-    double pos_y = 0.2 * sin(w * t) - 0.0222 * sin(3 * w * t);
-    double pos_z = 1.6;
+    double local_time = std::fmod(t, period);
+    if (local_time < 0.0) {
+        local_time += period;
+    }
 
-    tgt_pos.x(pos_x); tgt_pos.y(pos_y); tgt_pos.z(pos_z);
+    // Triangle vertices in the same workspace region as the circle.
+    const KDL::Vector vertex_a(0.5, 0.0, 1.7);
+    const KDL::Vector vertex_b(0.5, -0.0866, 1.55);
+    const KDL::Vector vertex_c(0.5, 0.0866, 1.55);
 
-    double vel_x = -0.1 * sin(w * t);
-    double vel_y = 0.2 * w * cos(w * t) - 0.0666 * w * cos(3 * w * t);
-    double vel_z = 0.0;
+    const KDL::Vector* start_vertex;
+    const KDL::Vector* end_vertex;
+    double time_in_segment;
 
-    tgt_vel.vel.x(vel_x); tgt_vel.vel.y(vel_y); tgt_vel.vel.z(vel_z);
+    if (local_time < segment_duration) {
+        start_vertex = &vertex_a;
+        end_vertex = &vertex_b;
+        time_in_segment = local_time;
+    } else if (local_time < 2.0 * segment_duration) {
+        start_vertex = &vertex_b;
+        end_vertex = &vertex_c;
+        time_in_segment = local_time - segment_duration;
+    } else {
+        start_vertex = &vertex_c;
+        end_vertex = &vertex_a;
+        time_in_segment = local_time - 2.0 * segment_duration;
+    }
+
+    const KDL::Vector edge = *end_vertex - *start_vertex;
+    const double interpolation = time_in_segment / segment_duration;
+
+    tgt_pos = *start_vertex + interpolation * edge;
+
+    tgt_vel = KDL::Twist::Zero();
+    tgt_vel.vel.x(edge.x() / segment_duration);
+    tgt_vel.vel.y(edge.y() / segment_duration);
+    tgt_vel.vel.z(edge.z() / segment_duration);
 }
 
 // Subscriber callback for current joint states

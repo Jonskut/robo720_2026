@@ -135,10 +135,18 @@ void TrajectoryPublisher::triangle_trajectory(KDL::Vector& tgt_pos, KDL::Twist& 
 
 // Subscriber callback for current joint states
 void TrajectoryPublisher::joint_state_callback(const sensor_msgs::msg::JointState& msg) {
+    if (msg.position.size() < NUM_JOINTS) {
+        RCLCPP_WARN_THROTTLE(
+            this->get_logger(), *this->get_clock(), 1000,
+            "Received an incomplete joint state; keeping the previous command.");
+        return;
+    }
+
     // Copy joint state to the KDL variable
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
         q_(i) = msg.position.at(i);
     }
+    joint_state_received_ = true;
 }
 
 // Publisher for desired joint position and velocity
@@ -159,9 +167,24 @@ void TrajectoryPublisher::timer_callback() {
         triangle_trajectory(tgt_pos, tgt_vel, t);
     }
     else {
-        /**
-         * TODO: Fail-safe
-         */
+        RCLCPP_ERROR_THROTTLE(
+            this->get_logger(), *this->get_clock(), 1000,
+            "Unknown trajectory type '%s'; holding the current position.",
+            trajectory_type_.c_str());
+
+        if (!joint_state_received_) {
+            RCLCPP_WARN_THROTTLE(
+                this->get_logger(), *this->get_clock(), 1000,
+                "Cannot hold position until a valid joint state has been received.");
+            return;
+        }
+
+        for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
+            trajectory_point_msg_.positions.at(i) = q_(i);
+            trajectory_point_msg_.velocities.at(i) = 0.0;
+        }
+        trajectory_point_publisher_->publish(trajectory_point_msg_);
+        return;
     }
 
     KDL::Rotation tgt_rot = KDL::Rotation::EulerZYX(M_PI_2, M_PI_2, M_PI_2);

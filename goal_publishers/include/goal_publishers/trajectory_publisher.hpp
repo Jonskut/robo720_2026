@@ -33,6 +33,7 @@ class TrajectoryPublisher : public rclcpp::Node
         KDL::JntArray q_;
         KDL::JntArray q_cmd_;
         KDL::JntArray q_dot_cmd_;
+        bool joint_state_received_{false};
 
         std::string trajectory_type_;
 

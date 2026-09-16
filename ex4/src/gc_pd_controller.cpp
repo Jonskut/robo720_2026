@@ -127,7 +127,7 @@ CallbackReturn GCPDController::on_configure(
     // Create a Solver instance
     solver_.reset(new Solver(chain_));
 
-    // Create a subscription for the joint command
+    // Create a subscription for the goal pose
     goal_pose_subscriber_ = get_node()->create_subscription<geometry_msgs::msg::PoseStamped>(
         "goal_pose", rclcpp::SystemDefaultsQoS(), std::bind(&GCPDController::goal_pose_callback,
         this, std::placeholders::_1));

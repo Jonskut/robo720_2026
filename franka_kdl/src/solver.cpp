@@ -17,6 +17,8 @@ Solver::Solver(const KDL::Chain& chain)
     ik_solver_.reset(new KDL::ChainIkSolverPos_LMA(chain));
     fk_solver_.reset(new KDL::ChainFkSolverPos_recursive(chain));
     ik_vel_solver_.reset(new KDL::ChainIkSolverVel_pinv(chain));
+    dyn_param_solver_.reset(new KDL::ChainDynParam(chain_, g_));
+    jac_solver_.reset(new KDL::ChainJntToJacSolver(chain));
 }
 
 int Solver::computeIK(const KDL::JntArray& q_init, const KDL::Frame& target_pose, KDL::JntArray& result) {
@@ -45,6 +47,59 @@ int Solver::computeIKvel(const KDL::JntArray& q_init, const KDL::Twist& vel, KDL
     int ret = ik_vel_solver_->CartToJnt(q_init, vel, q_dot);
 
     return ret;
+}
+
+int Solver::compute_mass_matrix(const KDL::JntArray& q, KDL::JntSpaceInertiaMatrix& M) {
+    int ret = dyn_param_solver_->JntToMass(q, M);
+    return ret;
+}
+
+int Solver::compute_gravity_vector(const KDL::JntArray& q, KDL::JntArray& G) {
+    int ret = dyn_param_solver_->JntToGravity(q, G);
+    return ret;
+}
+
+int Solver::compute_coriolis_vector(const KDL::JntArray& q, const KDL::JntArray& q_dot, KDL::JntArray& C) {
+    int ret = dyn_param_solver_->JntToCoriolis(q, q_dot, C);
+    return ret;
+}
+
+int Solver::compute_dyn_params(const KDL::JntArray& q, const KDL::JntArray& q_dot,
+                               KDL::JntSpaceInertiaMatrix& M, KDL::JntArray& G, KDL::JntArray& C) {
+    int ret = compute_mass_matrix(q, M);
+    if (ret < 0) {
+        std::cout << "Mass matrix computation failed with error code: " << ret << std::endl;
+        return ret;
+    }
+    ret = compute_gravity_vector(q, G);
+    if (ret < 0) {
+        std::cout << "Gravity vector computation failed with error code: " << ret << std::endl;
+        return ret;
+    }
+    ret = compute_coriolis_vector(q, q_dot, C);
+    if (ret < 0) {
+        std::cout << "Coriolis vector computation failed with error code: " << ret << std::endl;
+    }
+    return ret;
+}
+
+int Solver::compute_jac(const KDL::JntArray& q, KDL::Jacobian& jac, const int& seg_nr) {
+    int ret = jac_solver_->JntToJac(q, jac, seg_nr);
+
+    return ret;
+}
+
+void Solver::get_damped_pseudo_inverse(const Eigen::Matrix<double, 6, NUM_JOINTS>& jac,
+                                       Eigen::Matrix<double, NUM_JOINTS, 6>& jac_pinv) {
+    const Eigen::MatrixXd I6 = Eigen::MatrixXd::Identity(6, 6);
+
+    const Eigen::MatrixXd jacT = jac.transpose(); // -1x6
+    const Eigen::MatrixXd jacjacT = jac * jacT; // 6x6
+    const Eigen::MatrixXd jacjacT_damped = jacjacT + 1e-6 * I6;
+
+    const Eigen::MatrixXd jacjacT_damped_inv = jacjacT_damped.ldlt().solve(I6);
+
+    jac_pinv = jacT * jacjacT_damped_inv;
 }
 
 void Solver::kdl_debug_print(const KDL::JntArray& jnt_array) {

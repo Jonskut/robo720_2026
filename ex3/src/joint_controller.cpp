@@ -37,13 +37,15 @@ controller_interface::return_type JointController::update(
 
     // Kinematic controller
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
-        double feedback_term = 1 * (qd->positions.at(i) - q_(i));
+        double feedback_term = Kp_[i] * (qd->positions.at(i) - q_(i));
         q_dot_cmd_(i) = feedback_term;
 
         if (use_feedforward_.load()) {
             /**
              * TODO: Implement feedforward
              */
+             double feedforward_term = qd->velocities.at(i);
+             q_dot_cmd_(i) += feedforward_term;
         }
     }
 
@@ -69,8 +71,7 @@ CallbackReturn JointController::on_init() {
         /**
          * TODO: read the gain(s) from .yaml file to a variable here
          */
-
-        auto_declare<bool>("use_feedforward", false);
+        Kp_ = auto_declare<std::vector<double>>("Kp", Kp_);
     } 
     catch (const std::exception& e) {
         fprintf(stderr, "Exception thrown during init stage (on_init) with message: %s \n", e.what());

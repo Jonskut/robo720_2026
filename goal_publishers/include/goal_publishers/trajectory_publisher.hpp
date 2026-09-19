@@ -35,6 +35,7 @@ class TrajectoryPublisher : public rclcpp::Node
         KDL::JntArray q_dot_cmd_;
 
         std::string trajectory_type_;
+        std::string last_valid_trajectory_type_;
 
         // Joint state subscriber
         rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_subscriber_;
@@ -50,6 +51,10 @@ class TrajectoryPublisher : public rclcpp::Node
         void line_trajectory(KDL::Vector& tgt_pos, KDL::Twist& tgt_vel, double t);
         // Move the end effector in a circle trajectory in yz plane.
         void circle_trajectory(KDL::Vector& tgt_pos, KDL::Twist& tgt_vel, double t);
+
+        // [STUDENT ADDITIONS]
+        // Move the end effector in an ellipse trajectory in yz plane. 
+        void ellipse_trajectory(KDL::Vector& tgt_pos, KDL::Twist& tgt_vel, double t);
 };
 
 #endif  // ROBO720_2026_GOAL_PUBLISHERS__TRAJECTORY_PUBLISHER_HPP_

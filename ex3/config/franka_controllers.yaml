@@ -30,3 +30,4 @@ joint_controller:
       - position
       - velocity
     # TODO: Add a gain variable here which you then read in the controller code.
+    Kp: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]

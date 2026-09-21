@@ -41,9 +41,16 @@ controller_interface::return_type GCPDController::update(
         xd->pose.orientation.x, xd->pose.orientation.y, xd->pose.orientation.z, xd->pose.orientation.w);
     KDL::Frame pose_d(rot_d, pos_d);
 
-    /**
-     * TODO: Implement gravity compensation + PD
-     */
+    // Task 1
+    // Calculate desired q to use in controller
+    int ik_result = solver_->computeIK(
+        q_kdl_,       // initial guess: current q
+        pose_d,       // desired Cartesian pose
+        q_desired_     // output desired joint positions
+    );
+    for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
+        tau_(i) = g_ * q_kdl_(i) + Kp_ * (q_desired_(i) - q_kdl_(i)) - Kd_ * q_dot_kdl_(i)
+    }
 
     // Send torque commands to the hardware command interface
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {

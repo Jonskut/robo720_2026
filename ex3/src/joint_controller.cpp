@@ -35,15 +35,18 @@ controller_interface::return_type JointController::update(
     // Read the current desired joint position
     auto qd = *rt_trajectory_buffer_.readFromRT();
 
+    for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
+        qd_dot_(i) = qd->velocities.at(i);
+    }
+    
     // Kinematic controller
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
-        double feedback_term = 1 * (qd->positions.at(i) - q_(i));
+        double feedback_term = controller_gain_ * (qd->positions.at(i) - q_(i));
         q_dot_cmd_(i) = feedback_term;
 
         if (use_feedforward_.load()) {
-            /**
-             * TODO: Implement feedforward
-             */
+            double feedback_term = qd_dot_(i) + controller_gain_ * (qd->positions.at(i) - q_(i));
+            q_dot_cmd_(i) = feedback_term;
         }
     }
 
@@ -65,10 +68,7 @@ CallbackReturn JointController::on_init() {
             "state_interfaces", state_interface_types_);
         root_link_ = auto_declare<std::string>("root_link", root_link_);
         tip_link_ = auto_declare<std::string>("tip_link", tip_link_);
-
-        /**
-         * TODO: read the gain(s) from .yaml file to a variable here
-         */
+        controller_gain_ = auto_declare<double>("controller_gain", controller_gain_);
 
         auto_declare<bool>("use_feedforward", false);
     } 

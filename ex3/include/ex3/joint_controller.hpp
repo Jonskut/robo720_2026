@@ -55,13 +55,16 @@ class JointController : public controller_interface::ControllerInterface {
         KDL::Tree tree_;
         KDL::Chain chain_;
 
+        double controller_gain_;
+
         Vector7d q_;
         Vector7d initial_q_;
         Vector7d q_dot_cmd_;
+        Vector7d qd_dot_;
         double elapsed_time_{0.0};
 
         // For writing the parameter on non-RT thread and reading it in RT update() loop
-        std::atomic<bool> use_feedforward_{false};
+        std::atomic<bool> use_feedforward_{false};          // Feedforward enable
         rclcpp::Node::OnSetParametersCallbackHandle::SharedPtr parameter_callback_handle_;
 
         // Subscriber callback 

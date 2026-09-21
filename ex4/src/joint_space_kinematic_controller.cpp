@@ -41,9 +41,17 @@ controller_interface::return_type JointSpaceKinematicController::update(
         xd->pose.orientation.x, xd->pose.orientation.y, xd->pose.orientation.z, xd->pose.orientation.w);
     KDL::Frame pose_d(rot_d, pos_d);
 
-    /**
-     * TODO: Implement high-level joint space kinematic controller
-     */
+    // Task 3
+    // Solve the inverse kinematics
+    const int result = solver_->computeIK(
+        
+    );
+
+if (result < 0) {
+    RCLCPP_ERROR(get_node()->get_logger(),
+                 "Failed to compute dynamics: %d", result);
+    return controller_interface::return_type::ERROR;
+}
 
     // Send velocity commands to the low-level controller
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {

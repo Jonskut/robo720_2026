@@ -41,9 +41,29 @@ controller_interface::return_type TaskSpaceKinematicController::update(
         xd->pose.orientation.x, xd->pose.orientation.y, xd->pose.orientation.z, xd->pose.orientation.w);
     KDL::Frame pose_d(rot_d, pos_d);
 
-    /**
-     * TODO: Implement high-level task space kinematic controller
-     */
+    // Task 4
+    // Solve the jacobian and invert it
+    const int result = solver_->compute_jac(
+        
+        );
+    
+    if (result < 0) {
+        RCLCPP_ERROR(get_node()->get_logger(),
+                     "Failed to compute dynamics: %d", result);
+        return controller_interface::return_type::ERROR;
+    }
+
+    const int result = solver_->get_damped_pseudoinverse(
+        
+        );
+    
+    if (result < 0) {
+        RCLCPP_ERROR(get_node()->get_logger(),
+                     "Failed to compute dynamics: %d", result);
+        return controller_interface::return_type::ERROR;
+    }
+
+    // Solve the forward kinematics
 
     // Send velocity commands to the low-level controller
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {

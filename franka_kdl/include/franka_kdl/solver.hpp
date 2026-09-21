@@ -34,6 +34,17 @@ class Solver {
 
         int computeIKvel(const KDL::JntArray& q_init, const KDL::Twist& vel, KDL::JntArray& q_dot);
 
+        int compute_mass_matrix(const KDL::JntArray& q, KDL::JntSpaceInertiaMatrix& M);
+        int compute_gravity_vector(const KDL::JntArray& q, KDL::JntArray& G);
+        int compute_coriolis_vector(const KDL::JntArray& q, const KDL::JntArray& q_dot, KDL::JntArray& C);
+        int compute_dyn_params(const KDL::JntArray& q, const KDL::JntArray& q_dot,
+            KDL::JntSpaceInertiaMatrix& M, KDL::JntArray& G, KDL::JntArray& C);
+
+        int compute_jac(const KDL::JntArray& q, KDL::Jacobian& jac, const int& seg_nr=-1);
+
+        void get_damped_pseudo_inverse(const Eigen::Matrix<double, 6, NUM_JOINTS>& jac,
+            Eigen::Matrix<double, NUM_JOINTS, 6>& jac_pinv);
+
         void kdl_debug_print(const KDL::JntArray& jnt_array);
 
     private:

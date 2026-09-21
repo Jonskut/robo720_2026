@@ -43,13 +43,20 @@ controller_interface::return_type GCPDController::update(
 
     // Task 1
     // Calculate desired q to use in controller
-    int ik_result = solver_->computeIK(
+    solver_->computeIK(
         q_kdl_,       // initial guess: current q
         pose_d,       // desired Cartesian pose
         q_desired_     // output desired joint positions
     );
+
+    // Calculate gravity for control
+    solver_->compute_gravity_vector(q_kdl_, gravity_);
+    
+    // Compute control command to tau_ variable
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
-        tau_(i) = g_ * q_kdl_(i) + Kp_ * (q_desired_(i) - q_kdl_(i)) - Kd_ * q_dot_kdl_(i)
+        tau_(i) = gravity_(i) 
+        + Kp_ * (q_desired_(i) - q_kdl_(i)) 
+        - Kd_ * q_dot_kdl_(i);
     }
 
     // Send torque commands to the hardware command interface
@@ -176,6 +183,8 @@ CallbackReturn GCPDController::on_activate(
 
     q_kdl_.resize(NUM_JOINTS);
     q_dot_kdl_.resize(NUM_JOINTS);
+    q_desired_.resize(NUM_JOINTS);
+    gravity_.resize(NUM_JOINTS);
 
     // Initialize realtime buffer
     auto msg = std::make_shared<geometry_msgs::msg::PoseStamped>();

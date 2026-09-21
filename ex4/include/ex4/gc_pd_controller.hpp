@@ -61,12 +61,12 @@ class GCPDController : public controller_interface::ControllerInterface {
         // Task 1 variables
         double Kp_ = 1.2;
         double Kd_ = 1.4;
-        double g_ = 9.8;
 
         // KDL variables
         KDL::JntArray q_kdl_;
         KDL::JntArray q_dot_kdl_;
-        KDL::JntArray q_desired_(NUM_JOINTS);
+        KDL::JntArray q_desired_;
+        KDL::JntArray gravity_;
 
         double elapsed_time_{0.0};
 

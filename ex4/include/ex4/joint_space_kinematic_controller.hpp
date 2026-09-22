@@ -62,6 +62,9 @@ class JointSpaceKinematicController : public controller_interface::ControllerInt
 
         // KDL variables
         KDL::JntArray q_kdl_;
+        KDL::JntArray qd_;
+
+        double Kp = 1.2;
 
         double elapsed_time_{0.0};
 

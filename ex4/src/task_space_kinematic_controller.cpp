@@ -43,27 +43,51 @@ controller_interface::return_type TaskSpaceKinematicController::update(
 
     // Task 4
     // Solve the jacobian and invert it
-    const int result = solver_->compute_jac(
-        
-        );
+    int result = solver_->compute_jac(
+        q_kdl_,
+        jac_,
+        -1);
     
     if (result < 0) {
         RCLCPP_ERROR(get_node()->get_logger(),
-                     "Failed to compute dynamics: %d", result);
+                     "Failed to compute jacobian: %d", result);
         return controller_interface::return_type::ERROR;
     }
 
-    const int result = solver_->get_damped_pseudoinverse(
-        
-        );
-    
-    if (result < 0) {
-        RCLCPP_ERROR(get_node()->get_logger(),
-                     "Failed to compute dynamics: %d", result);
-        return controller_interface::return_type::ERROR;
+    Eigen::Matrix<double, NUM_TASK, NUM_JOINTS> jac_eigen;
+
+    for (std::size_t row = 0; row < NUM_TASK; ++row) {
+        for (std::size_t column = 0; column < NUM_JOINTS; ++column) {
+            jac_eigen(row, column) = jac_.data(row, column);
+        }
     }
+
+    solver_->get_damped_pseudo_inverse(jac_eigen, jac_pinv_);
 
     // Solve the forward kinematics
+    result = solver_->computeFK(
+        q_kdl_,
+        pose_e_);
+    
+    if (result < 0) {
+        RCLCPP_ERROR(get_node()->get_logger(),
+                     "Failed to compute forward kinematics: %d", result);
+        return controller_interface::return_type::ERROR;
+    }
+
+    // Modify pose error
+    const KDL::Twist pose_error = KDL::diff(pose_e_, pose_d);
+
+    Vector6d pose_error_eigen;
+    pose_error_eigen << pose_error.vel.x(),
+                        pose_error.vel.y(),
+                        pose_error.vel.z(),
+                        pose_error.rot.x(),
+                        pose_error.rot.y(),
+                        pose_error.rot.z();
+   
+    // Velocity command
+    q_dot_cmd_ = Kp_ * jac_pinv_ * pose_error_eigen;
 
     // Send velocity commands to the low-level controller
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
@@ -191,6 +215,7 @@ CallbackReturn TaskSpaceKinematicController::on_activate(
     elapsed_time_ = 0.0;
 
     q_kdl_.resize(NUM_JOINTS);
+    jac_.resize(NUM_JOINTS);
 
     // Initialize realtime buffer
     auto msg = std::make_shared<geometry_msgs::msg::PoseStamped>();

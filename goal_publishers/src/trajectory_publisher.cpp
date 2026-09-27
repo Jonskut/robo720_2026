@@ -188,7 +188,16 @@ void TrajectoryPublisher::timer_callback() {
         RCLCPP_ERROR(this->get_logger(), "Invalid trajectory type: %s. Reverting to last valid trajectory type: %s", trajectory_type_.c_str(), last_valid_trajectory_type_.c_str());
         this->set_parameter(rclcpp::Parameter("trajectory_type", last_valid_trajectory_type_));
         trajectory_type_ = last_valid_trajectory_type_;
-        circle_trajectory(tgt_pos, tgt_vel, t);  // Not good but prevents crash for now
+        //This solution assumes the first given trajectory type is valid (which is reasonable).
+        if (trajectory_type_ == "circle") {
+            circle_trajectory(tgt_pos, tgt_vel, t);
+        }
+        else if (trajectory_type_ == "line") {
+            line_trajectory(tgt_pos, tgt_vel, t);
+        }
+        else if (trajectory_type_ == "ellipse") {
+            ellipse_trajectory(tgt_pos, tgt_vel, t);
+        }
     }
  
 

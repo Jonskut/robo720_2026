@@ -44,7 +44,33 @@ controller_interface::return_type TaskSpaceKinematicController::update(
     /**
      * TODO: Implement high-level task space kinematic controller
      */
+    
+    //Get the current pose
+    KDL::Frame current_pose;
+    solver_->computeFK(q_kdl_, current_pose, chain_.getNrOfSegments());
 
+    //Pose error in task space
+    KDL::Twist error_twist = KDL::diff(current_pose, pose_d);
+    Eigen::Vector<double, 6> pose_error_eigen;
+    //(The pose error can similarly be stored in q_dot_cmd_, but is made explicit here for clarity)
+
+    //Applying the Proportional gain during the transformation
+    double Kp_ = 2;
+    for (std::size_t i = 0; i < 3; ++i) {
+        pose_error_eigen(i) = Kp_ * error_twist.vel(i);
+        pose_error_eigen(i + 3) = Kp_ * error_twist.rot(i);
+    }
+    
+    //Getting the Jacobian and its pseudo-inverse
+    KDL::Jacobian jacobian = KDL::Jacobian(NUM_JOINTS);
+    solver_->compute_jac(q_kdl_, jacobian);
+    
+    Eigen::Matrix<double, 6, NUM_JOINTS> jacobian_eigen = jacobian.data;
+    Eigen::Matrix<double, NUM_JOINTS, 6> jac_pinv;
+    solver_->get_damped_pseudo_inverse(jacobian_eigen, jac_pinv);
+
+    //Calculating the desired joint velocities
+    q_dot_cmd_= jac_pinv * pose_error_eigen;
     // Send velocity commands to the low-level controller
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
         command_interfaces_[i].set_value(q_dot_cmd_(i));

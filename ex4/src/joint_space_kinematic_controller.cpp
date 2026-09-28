@@ -45,6 +45,25 @@ controller_interface::return_type JointSpaceKinematicController::update(
      * TODO: Implement high-level joint space kinematic controller
      */
 
+    //Get the desired joint values
+    KDL::JntArray q_d_kdl = KDL::JntArray(NUM_JOINTS);
+    solver_->computeIK(q_kdl_, pose_d, q_d_kdl);
+
+    //KDL to Eigen conversion
+    Eigen::Vector<double, NUM_JOINTS> q;
+    Eigen::Vector<double, NUM_JOINTS> q_d;
+
+    for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
+        q(i) = q_kdl_(i);
+        q_d(i) = q_d_kdl(i);
+
+    }
+
+    //Defining the gain (of course, if they can be fetched from e.g. a yaml file, it would be better)
+    double Kp_ = 2;
+
+    q_dot_cmd_ = Kp_ * (q_d - q);
+
     // Send velocity commands to the low-level controller
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
         command_interfaces_[i].set_value(q_dot_cmd_(i));

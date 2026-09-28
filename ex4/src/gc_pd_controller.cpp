@@ -44,6 +44,36 @@ controller_interface::return_type GCPDController::update(
     /**
      * TODO: Implement gravity compensation + PD
      */
+     //Gravity compensation
+    KDL::JntArray G_compensation_kdl = KDL::JntArray(NUM_JOINTS);
+    solver_ -> compute_gravity_vector(q_kdl_, G_compensation_kdl);
+    
+    // Converting pose in KDL::Frame to joint values using inverse kinematics
+    KDL::JntArray q_d_kdl = KDL::JntArray(NUM_JOINTS);
+    solver_->computeIK(q_kdl_, pose_d, q_d_kdl);
+
+    //KDL to Eigen conversion
+    Vector7d G_compensation;
+    Vector7d q;
+    Vector7d q_dot;
+    Vector7d q_d;
+
+    for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
+        G_compensation(i) = G_compensation_kdl(i);
+        q(i) = q_kdl_(i);
+        q_d(i) = q_d_kdl(i);
+        q_dot(i) = q_dot_kdl_(i);
+
+    }
+
+    //Defining the gains (of course, if they can be fetched from e.g. a yaml file, it would be better)
+    double Kp_ = 2;
+    double Kd_ = 0.3;
+
+    //Calculating the torque command
+    tau_ = G_compensation
+            + Kp_ * (q_d - q)
+            - Kd_ * q_dot;
 
     // Send torque commands to the hardware command interface
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {

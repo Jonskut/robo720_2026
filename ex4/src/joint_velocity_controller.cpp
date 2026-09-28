@@ -28,7 +28,7 @@ controller_interface::return_type JointVelocityController::update_and_write_comm
     updateJointStates();
 
     elapsed_time_ = elapsed_time_ + period.seconds();
-
+    
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
         // Save current state to KDL variables for solvers
         q_kdl_(i) = position_interface_vals_(i);
@@ -41,7 +41,34 @@ controller_interface::return_type JointVelocityController::update_and_write_comm
     /**
      * TODO: Implement low-level velocity controller
      */
+    
+    // Compute the mass, coriolis and gravity matrices using KDL solvers
+    KDL::JntSpaceInertiaMatrix M_kdl = KDL::JntSpaceInertiaMatrix(NUM_JOINTS);
+    solver_->compute_mass_matrix(q_kdl_, M_kdl);
 
+    KDL::JntArray C_kdl = KDL::JntArray(NUM_JOINTS);
+    solver_->compute_coriolis_vector(q_kdl_, q_dot_kdl_, C_kdl);
+
+    KDL::JntArray G_kdl = KDL::JntArray(NUM_JOINTS);
+    solver_->compute_gravity_vector(q_kdl_, G_kdl);
+
+    // KDL to Eigen conversion
+    Eigen::Matrix<double, NUM_JOINTS, NUM_JOINTS> M;
+    Eigen::Matrix<double, NUM_JOINTS, 1> C;
+    Eigen::Matrix<double, NUM_JOINTS, 1> G;
+    Eigen::Vector<double, NUM_JOINTS> q_dot;
+
+    for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
+        G(i) = G_kdl(i);
+        C(i) = C_kdl(i);
+        q_dot(i) = q_dot_kdl_(i);
+        for (std::size_t j = 0; j < NUM_JOINTS; ++j) {
+            M(i, j) = M_kdl(i, j);
+        }
+    }
+
+    //Compute the feedback linearization term
+    tau_ = M * (qd_dot_ - q_dot) + C + G;
     // Send torque commands to the hardware command interface
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
         command_interfaces_[i].set_value(tau_(i));

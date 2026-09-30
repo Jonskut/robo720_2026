@@ -67,3 +67,12 @@ ros2 service call /controller_manager/switch_controller controller_manager_msgs/
 ```
 
 SwitchController service atomically activates and deactivates the controllers, meaning that there is no moment where both of the controllers would be inactive or active. Immediately when the first one is deactivated, the second one activates.
+
+## Trajectory
+
+```bash
+ros2 param set /trajectory_publisher trajectory_type triangle
+```
+
+(options = circle / line / triangle / test_error)
+

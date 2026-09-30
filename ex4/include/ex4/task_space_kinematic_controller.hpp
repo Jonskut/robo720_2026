@@ -65,6 +65,11 @@ class TaskSpaceKinematicController : public controller_interface::ControllerInte
 
         // KDL variables
         KDL::JntArray q_kdl_;
+        KDL::Jacobian jac_;
+        Eigen::Matrix<double, NUM_JOINTS, NUM_TASK> jac_pinv_;
+        KDL::Frame pose_e_;
+
+        double Kp_ = 1.2;
 
         double elapsed_time_{0.0};
 

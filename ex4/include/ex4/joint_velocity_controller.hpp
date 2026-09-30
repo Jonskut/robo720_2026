@@ -74,10 +74,16 @@ class JointVelocityController : public controller_interface::ChainableController
         // Eigen variables
         Vector7d qd_dot_; // desired joint velocities
         Vector7d tau_; // torque command
+        
+        // Controller gain
+        double Kd_ = 1.2;
 
         // KDL variables
         KDL::JntArray q_kdl_;
         KDL::JntArray q_dot_kdl_;
+        KDL::JntSpaceInertiaMatrix M_;
+        KDL::JntArray G_;
+        KDL::JntArray C_;
 
         double elapsed_time_{0.0};
 

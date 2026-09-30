@@ -58,9 +58,15 @@ class GCPDController : public controller_interface::ControllerInterface {
         // Eigen variables
         Vector7d tau_; // torque command
 
+        // Task 1 variables
+        double Kp_ = 1.2;
+        double Kd_ = 1.4;
+
         // KDL variables
         KDL::JntArray q_kdl_;
         KDL::JntArray q_dot_kdl_;
+        KDL::JntArray q_desired_;
+        KDL::JntArray gravity_;
 
         double elapsed_time_{0.0};
 

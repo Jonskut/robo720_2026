@@ -38,9 +38,35 @@ controller_interface::return_type JointVelocityController::update_and_write_comm
         qd_dot_(i) = reference_interfaces_.at(i);
     }
 
-    /**
-     * TODO: Implement low-level velocity controller
-     */
+    // Task 2
+    // Calculate M and h matrices (C and G are parts of h)
+    const int result = solver_->compute_dyn_params(
+        q_kdl_,
+        q_dot_kdl_,
+        M_,
+        G_,
+        C_);
+    
+    if (result < 0) {
+        RCLCPP_ERROR(get_node()->get_logger(),
+                     "Failed to compute dynamics: %d", result);
+        return controller_interface::return_type::ERROR;
+    }
+
+    // Joint Velocity control loop
+    Vector7d qddot_cmd;
+
+    for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
+        qddot_cmd(i) = Kd_ * (qd_dot_(i) - q_dot_kdl_(i));
+    }
+
+    for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
+        tau_(i) = G_(i) + C_(i);
+
+        for (std::size_t j = 0; j < NUM_JOINTS; ++j) {
+            tau_(i) = tau_(i) + M_(i, j) * qddot_cmd(j);
+        }
+    }
 
     // Send torque commands to the hardware command interface
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
@@ -172,6 +198,10 @@ CallbackReturn JointVelocityController::on_activate(
 
     q_kdl_.resize(NUM_JOINTS);
     q_dot_kdl_.resize(NUM_JOINTS);
+
+    M_.resize(NUM_JOINTS);
+    G_.resize(NUM_JOINTS);
+    C_.resize(NUM_JOINTS);
 
     // Initialize realtime buffer
     auto msg = std::make_shared<trajectory_msgs::msg::JointTrajectoryPoint>();

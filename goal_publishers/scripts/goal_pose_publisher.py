@@ -18,13 +18,17 @@ class GoalPosePublisher(Node):
         super().__init__('goal_pose_publisher')
         self.publisher_ = self.create_publisher(PoseStamped, 'goal_pose', 10)
         self.timer = self.create_timer(0.1, self.timer_callback)
-        self.get_logger().info('goal_pose_publisher active (press q to quit)')
+        self.get_logger().info('goal_pose_publisher active (press x to quit)')
 
         self.key = ''
         self.new_input = False
         self.goal_poses = {   # x, y, z, r, p, y
             '0' : [0.8, 0.0, 1.2, np.pi, 0.0, 0.0],
             '1' : [0.6, 0.0, 1.8, np.pi, -np.pi/2, 0.0],
+            'q' : [0.55, 0.0, 1.8, np.pi, -np.pi/2, 0.0],
+            'w' : [0.65, 0.0, 1.8, np.pi, -np.pi/2, 0.0],
+            'e' : [0.6, 0.05, 1.8, np.pi, -np.pi/2, 0.0],
+            'r' : [0.6, -0.05, 1.8, np.pi, -np.pi/2, 0.0],
             '2' : [0.0, 0.6, 1.4, np.pi, 0.0, np.pi/2],
             '3' : [-0.6, -0.35, 1.2, np.pi, 0.0, -np.pi/2],
             '4' : [0.1, 0.1, 1.7, np.pi/2, 0.0, 0.0],
@@ -39,7 +43,7 @@ class GoalPosePublisher(Node):
     def timer_callback(self):
         key = self.get_key()
 
-        if key == 'q':
+        if key == 'x':
             self.get_logger().info("Shutting down goal pose publisher, press Ctrl+C to exit.")
             rclpy.shutdown()
             return

@@ -41,9 +41,23 @@ controller_interface::return_type JointSpaceKinematicController::update(
         xd->pose.orientation.x, xd->pose.orientation.y, xd->pose.orientation.z, xd->pose.orientation.w);
     KDL::Frame pose_d(rot_d, pos_d);
 
-    /**
-     * TODO: Implement high-level joint space kinematic controller
-     */
+    // Task 3
+    // Solve the inverse kinematics
+    const int result = solver_->computeIK(
+        q_kdl_,
+        pose_d,
+        qd_
+    );
+
+    if (result < 0) {
+        RCLCPP_ERROR(get_node()->get_logger(),
+                    "Failed to compute inverse kinematics: %d", result);
+        return controller_interface::return_type::ERROR;
+    }
+
+    for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
+        q_dot_cmd_(i) = Kp * (qd_(i) - q_kdl_(i));
+    }
 
     // Send velocity commands to the low-level controller
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
@@ -171,6 +185,7 @@ CallbackReturn JointSpaceKinematicController::on_activate(
     elapsed_time_ = 0.0;
 
     q_kdl_.resize(NUM_JOINTS);
+    qd_.resize(NUM_JOINTS);
 
     // Initialize realtime buffer
     auto msg = std::make_shared<geometry_msgs::msg::PoseStamped>();

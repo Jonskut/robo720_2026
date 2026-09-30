@@ -247,13 +247,6 @@ void TrajectoryPublisher::timer_callback() {
             "Unknown trajectory type '%s'; holding the current position.",
             trajectory_type_.c_str());
 
-        if (!joint_state_received_) {
-            RCLCPP_WARN_THROTTLE(
-                this->get_logger(), *this->get_clock(), 1000,
-                "Cannot hold position until a valid joint state has been received.");
-            return;
-        }
-
         for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
             trajectory_point_msg_.positions.at(i) = q_(i);
             trajectory_point_msg_.velocities.at(i) = qd_dot_(i);

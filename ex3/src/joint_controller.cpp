@@ -45,8 +45,8 @@ controller_interface::return_type JointController::update(
         q_dot_cmd_(i) = feedback_term;
 
         if (use_feedforward_.load()) {
-            double feedback_term = qd_dot_(i) + controller_gain_ * (qd->positions.at(i) - q_(i));
-            q_dot_cmd_(i) = feedback_term;
+            //double feedback_term = qd_dot_(i) + controller_gain_ * (qd->positions.at(i) - q_(i));
+            q_dot_cmd_(i) = qd_dot_(i) + feedback_term;
         }
     }
 

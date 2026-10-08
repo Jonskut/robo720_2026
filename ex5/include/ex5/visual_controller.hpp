@@ -91,6 +91,9 @@ class VisualController : public controller_interface::ControllerInterface {
         KDL::Frame x_kdl_;
         KDL::Frame xd_kdl_;
         KDL::Twist xe_kdl_;
+        KDL::Frame T_ee_cam_;
+        KDL::Frame T_cam_camopt_;
+        KDL::Frame T_marker_goal_;
 
         double elapsed_time_{0.0};
 
@@ -112,6 +115,12 @@ class VisualController : public controller_interface::ControllerInterface {
         // Debug print functions to reduce clutter in the controller code
         void kdl_chain_error_print(const std::string& tip_link);
         void kdl_chain_success_print(const std::string& tip_link, const KDL::Chain& chain);
+
+        rclcpp::Time last_marker_time_;
+        bool is_marker_detected_{false};
+
+        KDL::Frame xd_visual_latched_{KDL::Frame::Identity()};
+        bool visual_goal_latched_{false};
 };
 
 }  // namespace ex5

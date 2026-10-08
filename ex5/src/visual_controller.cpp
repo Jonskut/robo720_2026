@@ -42,16 +42,25 @@ controller_interface::return_type VisualController::update(
     solver_->computeFK(q_kdl_, x_kdl_);
 
     // TODO: define some flag for switching behavior once marker is detected
-    if (true) {  // Follow wave trajectory
+    double dt_marker = (get_node()->now() - last_marker_time_).seconds();
+    is_marker_detected_ = dt_marker < 0.5;  // marker seen within last 0.5s
+
+    if (!is_marker_detected_) {  // Follow wave trajectory
         xd_kdl_ = *rt_trajectory_buffer_.readFromRT()->get();
     }
     else {  // Track the marker
         // Read the marker pose
         T_cam_marker_ = *rt_marker_pose_buffer_.readFromRT()->get();
-
-        /**
-         * TODO: set desired pose on top of the marker
-         */
+        if (!visual_goal_latched_)
+        {
+            xd_kdl_ = x_kdl_ * T_ee_cam_ * T_cam_camopt_ * T_cam_marker_ * T_marker_goal_;
+            xd_visual_latched_ = xd_kdl_;
+            visual_goal_latched_ = true;
+        }
+        else
+        {
+            xd_kdl_ = xd_visual_latched_;
+        }
     }
 
     // Get the error in task space
@@ -236,6 +245,24 @@ CallbackReturn VisualController::on_activate(
 
     T_cam_marker_ = KDL::Frame::Identity();
 
+    T_ee_cam_ = KDL::Frame(
+        KDL::Rotation::Identity(),
+        KDL::Vector(0.0, -0.05, 0.09));
+    
+    T_cam_camopt_ = KDL::Frame(
+        KDL::Rotation::RPY(M_PI, M_PI, -M_PI/2.0),
+        KDL::Vector::Zero());
+
+    T_marker_goal_ = KDL::Frame(
+        KDL::Rotation::RPY(0, M_PI, M_PI),
+        KDL::Vector(0.0, 0.0, 0.20));
+
+    xd_visual_latched_ = KDL::Frame::Identity();
+    
+    last_marker_time_ = get_node()->now() - rclcpp::Duration::from_seconds(1000.0);
+    is_marker_detected_ = false;
+    visual_goal_latched_ = false;
+
     return CallbackReturn::SUCCESS;
 }
 
@@ -283,7 +310,10 @@ void VisualController::trajectory_callback(const std::shared_ptr<std_msgs::msg::
 
 // Marker pose in camera optical frame
 void VisualController::marker_pose_callback(const std::shared_ptr<std_msgs::msg::Float64MultiArray> msg) {
-    if (msg->data.size() > 0) {
+    if (msg->data.size() > 6)
+    {
+        last_marker_time_ = get_node()->now();
+        is_marker_detected_ = true;
         double xx, xy, xz, yx, yy, yz, zx, zy, zz, tx, ty, tz;
         xx = msg->data[0], xy = msg->data[1];  xz = msg->data[2];
         yx = msg->data[3], yy = msg->data[4];  yz = msg->data[5];

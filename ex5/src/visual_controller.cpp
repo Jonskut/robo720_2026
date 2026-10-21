@@ -255,7 +255,7 @@ CallbackReturn VisualController::on_activate(
 
     T_marker_goal_ = KDL::Frame(
         KDL::Rotation::RPY(0, M_PI, M_PI),
-        KDL::Vector(0.0, 0.0, 0.20));
+        KDL::Vector(0.0, 0.0, 0.30));
 
     xd_visual_latched_ = KDL::Frame::Identity();
     

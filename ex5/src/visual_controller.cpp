@@ -46,7 +46,6 @@ controller_interface::return_type VisualController::update(
     // Get camera pose in world coordinates
     camera_solver_->computeFK(q_camera, T_base_cam_);
 
-    // TODO: define some flag for switching behavior once marker is detected
     if (!marker_detected_.load()) {  // Follow wave trajectory
         xd_kdl_ = *rt_trajectory_buffer_.readFromRT()->get();
     }
@@ -54,9 +53,6 @@ controller_interface::return_type VisualController::update(
         // Read the marker pose
         T_cam_marker_ = *rt_marker_pose_buffer_.readFromRT()->get();
 
-        /**
-         * TODO: set desired pose on top of the marker
-         */
         // Transform marker pose into robot base coordinates 
         KDL::Frame T_base_marker = T_base_cam_ * T_cam_marker_;
 

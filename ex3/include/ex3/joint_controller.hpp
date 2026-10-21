@@ -63,6 +63,8 @@ class JointController : public controller_interface::ControllerInterface {
         Vector7d qd_dot_;
         double elapsed_time_{0.0};
 
+        std::vector<double> Kp_;
+
         // For writing the parameter on non-RT thread and reading it in RT update() loop
         std::atomic<bool> use_feedforward_{false};          // Feedforward enable
         rclcpp::Node::OnSetParametersCallbackHandle::SharedPtr parameter_callback_handle_;

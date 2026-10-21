@@ -36,22 +36,36 @@ controller_interface::return_type VisualController::update(
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
         q_kdl_(i) = position_interface_vals_(i);
         q_dot_kdl_(i) = velocity_interface_vals_(i);
+
+        q_camera(i) = position_interface_vals_(i);
     }
 
     // Get the current EE pose
     solver_->computeFK(q_kdl_, x_kdl_);
 
-    // TODO: define some flag for switching behavior once marker is detected
-    if (true) {  // Follow wave trajectory
+    // Get camera pose in world coordinates
+    camera_solver_->computeFK(q_camera, T_base_cam_);
+
+    if (!marker_detected_.load()) {  // Follow wave trajectory
         xd_kdl_ = *rt_trajectory_buffer_.readFromRT()->get();
     }
     else {  // Track the marker
         // Read the marker pose
         T_cam_marker_ = *rt_marker_pose_buffer_.readFromRT()->get();
 
-        /**
-         * TODO: set desired pose on top of the marker
-         */
+        // Transform marker pose into robot base coordinates 
+        KDL::Frame T_base_marker = T_base_cam_ * T_cam_marker_;
+
+        // Adding offsets, rotation around base x-axis (trust) and z offset in base frame
+        KDL::Frame T_offset(
+            KDL::Rotation::RotX(M_PI),
+            KDL::Vector(0.0, 0.0, 0.4)
+        );
+
+        xd_kdl_ = KDL::Frame(
+            T_offset.M * T_base_marker.M,   // rotate about marker's x axis
+            T_base_marker.p + T_offset.p    // offset in base frame
+        );
     }
 
     // Get the error in task space
@@ -107,6 +121,7 @@ CallbackReturn VisualController::on_init() {
 
         root_link_ = auto_declare<std::string>("root_link", root_link_);
         tip_link_ = auto_declare<std::string>("tip_link", tip_link_);
+        optical_link_ = auto_declare<std::string>("optical_link", optical_link_);
 
         p_gains_ = auto_declare<std::vector<double>>("p_gains", p_gains_);
         d_gains_ = auto_declare<std::vector<double>>("d_gains", d_gains_);
@@ -176,8 +191,23 @@ CallbackReturn VisualController::on_configure(
         kdl_chain_success_print(tip_link_, chain_);
     }
 
+    //Get chain for camera to base transformation
+    if (!tree_.getChain(root_link_, optical_link_, base_camera_chain_)) {
+        kdl_chain_error_print(optical_link_);
+
+        return CallbackReturn::ERROR;
+    }
+    else {
+        kdl_chain_success_print(optical_link_, base_camera_chain_);
+    }
+
     // Create a Solver instance
     solver_.reset(new Solver(chain_));
+    camera_solver_.reset(new Solver(base_camera_chain_));
+
+    q_camera = KDL::JntArray(base_camera_chain_.getNrOfJoints());
+    camera_solver_->computeFK(q_camera, T_base_cam_);
+
 
     // Create a subscription for the joint command
     marker_pose_subscriber_ = get_node()->create_subscription<std_msgs::msg::Float64MultiArray>(
@@ -293,6 +323,9 @@ void VisualController::marker_pose_callback(const std::shared_ptr<std_msgs::msg:
         auto T_cam_marker = std::make_shared<KDL::Frame>(
             KDL::Frame(KDL::Rotation(xx, xy, xz, yx, yy, yz, zx, zy, zz), KDL::Vector(tx, ty, tz)));
         rt_marker_pose_buffer_.writeFromNonRT(T_cam_marker);
+        marker_detected_.store(true); // Set the flag to indicate that the marker has been detected
+    } else {
+        marker_detected_.store(false); // Set the flag to indicate that the marker has not been detected
     }
 }
 

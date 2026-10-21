@@ -45,6 +45,8 @@ class VisualController : public controller_interface::ControllerInterface {
         // Buffer for RT update() loop (store a shared_ptr instead of the message itself -> less copying)
         realtime_tools::RealtimeBuffer<std::shared_ptr<KDL::Frame>> rt_marker_pose_buffer_;
         realtime_tools::RealtimeBuffer<std::shared_ptr<KDL::Frame>> rt_trajectory_buffer_;
+        
+        std::atomic<bool> marker_detected_{false}; // Flag to indicate if the marker has been detected
 
         // Marker TF broadcaster for RViz debug
         std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
@@ -59,10 +61,16 @@ class VisualController : public controller_interface::ControllerInterface {
         std::vector<std::string> joint_names_;
         std::string root_link_;
         std::string tip_link_;
+        std::string optical_link_;
 
         KDL::Tree tree_;
         KDL::Chain chain_;
         std::unique_ptr<Solver> solver_;
+
+        KDL::Chain base_camera_chain_;
+        std::unique_ptr<Solver> camera_solver_;
+        KDL::Frame T_base_cam_;
+        KDL::JntArray q_camera;
 
         // Eigen variables
         Eigen::Matrix<double, NUM_JOINTS, NUM_JOINTS> M_;

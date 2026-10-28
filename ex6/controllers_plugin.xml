@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<library path="ex6">
+  <class name="ex6/PotentialFieldController"
+         type="ex6::PotentialFieldController"
+         base_class_type="controller_interface::ControllerInterface">
+    <description>
+      Potential field controller template, freely chosen implementation.
+    </description>
+  </class>
+</library>

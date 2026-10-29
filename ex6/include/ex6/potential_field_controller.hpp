@@ -25,6 +25,9 @@
 #include <kdl/tree.hpp>
 #include <kdl/chain.hpp>
 
+#include <joint_limits/joint_limits.hpp>
+#include <joint_limits/joint_limits_urdf.hpp>
+
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
 namespace ex6 {
@@ -77,6 +80,11 @@ class PotentialFieldController : public controller_interface::ControllerInterfac
         KDL::JntArray q_kdl_;
         KDL::JntArray q_dot_kdl_;
         KDL::Frame xd_kdl_;
+
+        KDL::JntArray joint_min_;
+        KDL::JntArray joint_max_;
+
+        double repulsiveAPF(double distance, double distance_prime);
 
         double elapsed_time_{0.0};
 

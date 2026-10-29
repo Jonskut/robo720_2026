@@ -21,9 +21,22 @@
 #include <kdl/tree.hpp>
 #include <kdl_parser/kdl_parser.hpp>
 
+#include <joint_limits/joint_limits.hpp>
+#include <joint_limits/joint_limits_urdf.hpp>
 
 namespace ex6 {
 
+double PotentialFieldController::repulsiveAPF(double distance, double distance_prime) {
+    if (distance >= threshold_) {
+        return 0.0;
+    }
+
+    distance = std::max(distance, 0.01);
+
+    return k_
+            * (1.0 / distance - 1.0 / threshold_)
+            * (1.0 / (distance * distance)) * distance_prime;
+}
 
 controller_interface::return_type PotentialFieldController::update(
   const rclcpp::Time& /*time*/,
@@ -41,15 +54,27 @@ controller_interface::return_type PotentialFieldController::update(
 
     // Read the goal pose
     xd_kdl_ = *rt_goal_pose_buffer_.readFromRT()->get();
-
-    /**
-     * TODO: implement attractive force/velocity
-     */
-
     
-    /**
-     * TODO: implement joint limits as APF
-     */
+    Vector7d tau_rep = Vector7d::Zero();
+    for (size_t i = 0; i < NUM_JOINTS; ++i)
+        {
+            double Dmin =
+                std::pow(q_kdl_(i) - joint_min_(i), 2);
+
+            double Dmax =
+                std::pow(q_kdl_(i) - joint_max_(i), 2);
+
+            double Dmin_prime =
+                2.0 * (q_kdl_(i) - joint_min_(i));
+
+            double Dmax_prime =
+                2.0 * (q_kdl_(i) - joint_max_(i));
+
+            double Fmin = repulsiveAPF(Dmin, Dmin_prime);
+            double Fmax = repulsiveAPF(Dmax, Dmax_prime);
+
+            tau_rep(i) = Fmin + Fmax;
+        }
 
 
     /**
@@ -151,9 +176,21 @@ CallbackReturn PotentialFieldController::on_configure(
             RCLCPP_ERROR(get_node()->get_logger(), "Could not find joint '%s' in urdf", joint_names_[i].c_str());
             return CallbackReturn::ERROR;
         }
-        /**
-         * TODO: read the joint limits to some data structure
-         */
+        joint_limits::JointLimits limits;
+
+        if (!joint_limits::getJointLimits(joint_urdf, limits)) {
+            RCLCPP_ERROR(
+                get_node()->get_logger(),
+                "Could not get limits for joint '%s'",
+                joint_names_[i].c_str());
+            return CallbackReturn::ERROR;
+        }
+        else {
+            RCLCPP_INFO(get_node()->get_logger(), "Found joint_limits for joint '%s'",
+            joint_names_[i].c_str());
+        }
+        joint_min_(i) = limits.min_position;
+        joint_max_(i) = limits.max_position;
     }
 
     // Construct a KDL tree object from the URDF

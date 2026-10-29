@@ -21,6 +21,9 @@ find_package(realtime_tools REQUIRED)
 find_package(urdf REQUIRED)
 find_package(pluginlib REQUIRED)
 
+# EX6 added
+find_package(joint_limits REQUIRED)
+
 # Eigen + KDL
 find_package(Eigen3 REQUIRED)
 find_package(orocos_kdl_vendor REQUIRED)
@@ -58,6 +61,7 @@ ament_target_dependencies(${PROJECT_NAME}
   kdl_parser
   franka_kdl
   custom_msgs
+  joint_limits
 )
 
 install(TARGETS ${PROJECT_NAME}

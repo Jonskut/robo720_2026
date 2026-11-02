@@ -237,6 +237,14 @@ CallbackReturn PotentialFieldController::on_configure(
         RCLCPP_INFO(get_node()->get_logger(), "Found robot_description");
     }
 
+    // Resize KDL arrays to match number of joints
+    joint_min_.resize(NUM_JOINTS);
+    joint_max_.resize(NUM_JOINTS);
+    q_kdl_.resize(NUM_JOINTS);
+    q_dot_kdl_.resize(NUM_JOINTS);
+    gravity_.resize(NUM_JOINTS);
+    q_desired_.resize(NUM_JOINTS);
+
     // Get the joint angle limits from the URDF
     for (std::size_t i = 0; i < NUM_JOINTS; i++) {
         urdf::JointConstSharedPtr joint_urdf = urdf.getJoint(joint_names_[i]);

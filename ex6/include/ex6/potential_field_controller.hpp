@@ -81,11 +81,21 @@ class PotentialFieldController : public controller_interface::ControllerInterfac
         KDL::JntArray q_dot_kdl_;
         KDL::Frame xd_kdl_;
 
+        KDL::JntArray q_desired_;
+        KDL::JntArray gravity_;
+        Vector7d tau_att_;
+        Vector7d tau_rep_;
+        Vector7d tau_cmd_;
+
         KDL::JntArray joint_min_;
         KDL::JntArray joint_max_;
 
         double repulsiveAPF(double distance, double distance_prime);
-
+        double Kp_ = 30;
+        double Kd_ = 40;
+        double threshold_ = 0.1;   // distance threshold for repulsive field
+        double k_ = 0.5;           // repulsive gain
+        
         double elapsed_time_{0.0};
 
         // Subscriber callbacks

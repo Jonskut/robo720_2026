@@ -55,7 +55,13 @@ controller_interface::return_type PotentialFieldController::update(
     // Read the goal pose
     xd_kdl_ = *rt_goal_pose_buffer_.readFromRT()->get();
     
-    Vector7d tau_rep = Vector7d::Zero();
+    solver_->computeIK(q_kdl_, xd_kdl_, q_desired_);
+    solver_->compute_gravity_vector(q_kdl_, gravity_);
+
+    for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
+        tau_att_(i) = gravity_(i) + Kp_ * (q_desired_(i) - q_kdl_(i)) - Kd_ * q_dot_kdl_(i);
+    }
+    tau_rep_ = Vector7d::Zero();
     for (size_t i = 0; i < NUM_JOINTS; ++i)
         {
             double Dmin =
@@ -73,9 +79,8 @@ controller_interface::return_type PotentialFieldController::update(
             double Fmin = repulsiveAPF(Dmin, Dmin_prime);
             double Fmax = repulsiveAPF(Dmax, Dmax_prime);
 
-            tau_rep(i) = Fmin + Fmax;
+            tau_rep_(i) = Fmin + Fmax;
         }
-
 
     /**
      * TODO: implement obstacle avoidance with APF
@@ -83,33 +88,96 @@ controller_interface::return_type PotentialFieldController::update(
     // Read the obstacle info
     const auto& obstacles = *rt_obstacles_.readFromRT();
     for (const auto& obs : obstacles) {
-        Eigen::Vector3d p_obs(obs.position.x, obs.position.y, obs.position.z);
+        for (size_t frame_idx = 0; frame_idx < chain_.getNrOfSegments(); ++frame_idx)
+        {
+            KDL::Frame joint_pose;
+            solver_->computeFK(q_kdl_, joint_pose, frame_idx);
+            
+            Eigen::Vector3d p(
+                joint_pose.p.x(),
+                joint_pose.p.y(),
+                joint_pose.p.z());
 
-        // Spherical obstacle
-        if (obs.shape_type == custom_msgs::msg::Obstacle::SPHERE) {
-            // Sphere radius
-            double obs_r = obs.radius;
-            /**
-             * TODO: spherical object avoidance
-             */
-        }
-        // Box obstacle (such as wall)
-        else if (obs.shape_type == custom_msgs::msg::Obstacle::BOX) {
-            // Box dimensions vector
-            Eigen::Vector3d box_size(obs.box_size.at(0), obs.box_size.at(1), obs.box_size.at(2));
-            /**
-             * TODO: box obstacle avoidance
-             */
+            Eigen::Vector3d p_obs(obs.position.x, obs.position.y, obs.position.z);
+            
+            KDL::Jacobian J(NUM_JOINTS);
+
+            solver_->compute_jac(q_kdl_, J, frame_idx);
+
+            Eigen::Matrix<double,3,NUM_JOINTS> Jp =
+                J.data.topRows(3);
+
+            // Spherical obstacle
+            if (obs.shape_type == custom_msgs::msg::Obstacle::SPHERE) {
+                // Sphere radius
+                double obs_r = obs.radius;
+                /**
+                * TODO: spherical object avoidance
+                */
+                Eigen::Vector3d diff = p - p_obs;
+                Eigen::Vector3d p_o = p_obs + obs_r * diff.normalized();
+
+                Eigen::Vector3d delta = p - p_o;
+
+                double D = delta.squaredNorm();
+
+                Eigen::RowVector<double,NUM_JOINTS> D_prime = 2.0 * delta.transpose() * Jp;
+
+                for(size_t j = 0; j < NUM_JOINTS; ++j)
+                {
+                    tau_rep_(j) += repulsiveAPF(D, D_prime(j));
+                }
+
+            }
+            // Box obstacle (such as wall)
+            else if (obs.shape_type == custom_msgs::msg::Obstacle::BOX) {
+                // Box dimensions vector
+                Eigen::Vector3d box_size(obs.box_size.at(0), obs.box_size.at(1), obs.box_size.at(2));
+                /**
+                * TODO: box obstacle avoidance
+                */
+                Eigen::Vector3d half_size = box_size * 0.5;
+            
+                // closest point on box to robot point p
+                Eigen::Vector3d p_o;
+            
+                p_o.x() = std::clamp(
+                p.x(),
+                p_obs.x() - half_size.x(),
+                p_obs.x() + half_size.x());
+            
+                p_o.y() = std::clamp(
+                p.y(),
+                p_obs.y() - half_size.y(),
+                p_obs.y() + half_size.y());
+            
+                p_o.z() = std::clamp(
+                p.z(),
+                p_obs.z() - half_size.z(),
+                p_obs.z() + half_size.z());
+            
+                Eigen::Vector3d diff = p - p_o;
+
+                double D = diff.squaredNorm();
+
+                Eigen::RowVector<double,NUM_JOINTS> D_prime = 2.0 * diff.transpose() * Jp;
+
+                for(size_t j = 0; j < NUM_JOINTS; ++j)
+                {
+                    tau_rep_(j) += repulsiveAPF(D, D_prime(j));
+                }
+            }
         }
     }
 
     /**
      * TODO: final torque command
      */
+    tau_cmd_ = tau_att_ + tau_rep_;
 
     // Send torque commands to the hardware command interface
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
-        command_interfaces_[i].set_value(0.0);
+        command_interfaces_[i].set_value(tau_cmd_(i));
     }
 
     publish_markers();

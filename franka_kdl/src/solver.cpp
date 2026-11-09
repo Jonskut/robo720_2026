@@ -19,6 +19,7 @@ Solver::Solver(const KDL::Chain& chain)
     ik_vel_solver_.reset(new KDL::ChainIkSolverVel_pinv(chain));
     dyn_param_solver_.reset(new KDL::ChainDynParam(chain_, g_));
     jac_solver_.reset(new KDL::ChainJntToJacSolver(chain));
+    jac_dot_solver_.reset(new KDL::ChainJntToJacDotSolver(chain));
 }
 
 int Solver::computeIK(const KDL::JntArray& q_init, const KDL::Frame& target_pose, KDL::JntArray& result) {
@@ -85,6 +86,13 @@ int Solver::compute_dyn_params(const KDL::JntArray& q, const KDL::JntArray& q_do
 
 int Solver::compute_jac(const KDL::JntArray& q, KDL::Jacobian& jac, const int& seg_nr) {
     int ret = jac_solver_->JntToJac(q, jac, seg_nr);
+
+    return ret;
+}
+
+int Solver::compute_jac_dot(const KDL::JntArray& q, const KDL::JntArray& q_dot, KDL::Jacobian& jac_dot) {
+    KDL::JntArrayVel qq_dot(q, q_dot);
+    int ret = jac_dot_solver_->JntToJacDot(qq_dot, jac_dot);
 
     return ret;
 }

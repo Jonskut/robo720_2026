@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<library path="ex7">
+  <class name="ex7/ImpedanceController"
+         type="ex7::ImpedanceController"
+         base_class_type="controller_interface::ControllerInterface">
+    <description>
+      Impedance controller sending torque commands.
+    </description>
+  </class>
+  <class name="ex7/AdmittanceController"
+         type="ex7::AdmittanceController"
+         base_class_type="controller_interface::ControllerInterface">
+    <description>
+      Admittance controller sending torque commands.
+    </description>
+  </class>
+  <class name="ex7/DirectForceController"
+         type="ex7::DirectForceController"
+         base_class_type="controller_interface::ControllerInterface">
+    <description>
+      Hybrid position/force controller sending torque commands.
+    </description>
+  </class>
+</library>

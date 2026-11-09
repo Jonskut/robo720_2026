@@ -48,6 +48,7 @@ ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   scripts/goal_pose_publisher.py
   scripts/pose_trajectory_publisher.py
+  scripts/fake_wrench_publisher.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

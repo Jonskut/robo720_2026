@@ -10,7 +10,7 @@ Once inside container again, navigate to `ros2_ws` and build and source the pack
 
 ```bash
 cd ~/ros2_ws
-colcon build --parallel-workers $(($(nproc)/2))
+colcon build --parallel-workers $(($(nproc)/2)) --executor sequential
 source install/setup.bash
 ```
 
@@ -63,3 +63,8 @@ ros2 param set /<node_name> use_force_measurement <bool>
 ```
 
 Node name is either `impedance_controller`, `admittance_controller` or `direct_force_controller` and bool is either `true` or `false`.
+
+```bash
+source install/setup.bash
+ros2 run goal_publishers goal_pose_publisher.py
+```

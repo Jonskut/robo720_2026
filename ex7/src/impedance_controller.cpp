@@ -75,16 +75,17 @@ controller_interface::return_type ImpedanceController::update(
          * TODO: Rotate the measurement vector from sensor frame to base frame
          * hint: h_e_ measurement consists of two 3D vectors
          */
+
+        W_.setZero();
+
         for (int i = 0; i < 3; ++i)
         {
             for (int j = 0; j < 3; ++j)
             {
-                R_bs_(i,j) = x_kdl_.M(i,j);
+                W_(i,j) = x_kdl_.M(i,j);
+                W_(i+3,j+3) = x_kdl_.M(i,j);
             }
         }
-
-        W_.topLeftCorner<3,3>() = R_bs_;
-        W_.bottomRightCorner<3,3>() = R_bs_;
 
         h_e_ = W_ * h_e_;
         
@@ -108,8 +109,8 @@ controller_interface::return_type ImpedanceController::update(
      * TODO: compute tau_pos_ as the torque command shown on lecture and assignment
      */
     // Calculate gains
-    Kp_ = Md_ * (wn_ * wn_);
-    Kd_ = 2.0 * zeta_ * (Kp_ * Md_).cwiseSqrt();
+    Kp_ = 1.0 * (Md_ * (wn_ * wn_));
+    Kd_ = 1.0 * (2.0 * zeta_ * (Kp_ * Md_).cwiseSqrt());
     // Calculate position and velocity deltas
     x_dot_ = J_ * q_dot_;
     x_dot_tilde_ = -x_dot_;

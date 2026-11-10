@@ -21,10 +21,20 @@
 #include <kdl/tree.hpp>
 #include <kdl_parser/kdl_parser.hpp>
 
-
 namespace ex6 {
 
-
+double PotentialFieldController::RepulsiveForce(double d, double ddot, double threshold_distance, double k_RPF) {
+    if (d<= 0.0) {
+        d = 0.0001; // Avoid division by zero
+    }
+ 
+    if (d < threshold_distance) {
+        return k_RPF * (1/d -1/threshold_distance) * 1/(std::pow(d,2)) * ddot;
+    }
+    else {
+        return 0.0; // No potential outside the influence distance
+    }
+}
 controller_interface::return_type PotentialFieldController::update(
   const rclcpp::Time& /*time*/,
   const rclcpp::Duration& period) {
@@ -45,12 +55,36 @@ controller_interface::return_type PotentialFieldController::update(
     /**
      * TODO: implement attractive force/velocity
      */
+    // We can just do simple PD control with gravity compensation
+    q_goal_kdl_ = KDL::JntArray(NUM_JOINTS);
+    G_compensation_kdl_ = KDL::JntArray(NUM_JOINTS);
 
-    
+    solver_->computeIK(q_kdl_, xd_kdl_, q_goal_kdl_);
+    solver_->compute_gravity_vector(q_kdl_, G_compensation_kdl_);
+
+    for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
+        tau_att_(i) = G_compensation_kdl_(i)
+        + Kp_ * (q_goal_kdl_(i) - q_kdl_(i))
+        - Kd_ * q_dot_kdl_(i);
+    }
+
     /**
      * TODO: implement joint limits as APF
      */
+    
+    for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
+        // Repulsive force for joint limits
+        d_ = std::pow(q_min_(i) - q_kdl_(i), 2);
+        dprime_ = -2*(q_min_(i) - q_kdl_(i));
+        // The limits are symmetrical around 0 in our case so we'll use 1/3 of the max as a threshold
+        double tau_rep_min = RepulsiveForce(d_, dprime_, q_max_(i)/3, 0.1);
 
+        d_ = std::pow(q_kdl_(i) - q_max_(i), 2);
+        dprime_ = 2*(q_kdl_(i) - q_max_(i));
+        double tau_rep_max = RepulsiveForce(d_, dprime_, q_max_(i)/3, 0.1);
+
+        tau_rep_(i) = tau_rep_min + tau_rep_max;
+    }
 
     /**
      * TODO: implement obstacle avoidance with APF
@@ -58,33 +92,90 @@ controller_interface::return_type PotentialFieldController::update(
     // Read the obstacle info
     const auto& obstacles = *rt_obstacles_.readFromRT();
     for (const auto& obs : obstacles) {
-        Eigen::Vector3d p_obs(obs.position.x, obs.position.y, obs.position.z);
+        // Loop over each segment to avoid collision for all
+        for (size_t frame_idx = 0; frame_idx < chain_.getNrOfSegments(); frame_idx++) {
 
-        // Spherical obstacle
-        if (obs.shape_type == custom_msgs::msg::Obstacle::SPHERE) {
-            // Sphere radius
-            double obs_r = obs.radius;
-            /**
-             * TODO: spherical object avoidance
-             */
+            // Position of obstacle and segments
+            Eigen::Vector3d p_obs(obs.position.x, obs.position.y, obs.position.z);
+            KDL::Frame segment_pose;
+            solver_->computeFK(q_kdl_, segment_pose, frame_idx);
+            Eigen::Vector3d p_segment(segment_pose.p.x(), segment_pose.p.y(), segment_pose.p.z());
+
+            // Since we need the x',y',z' of the segment
+            KDL::Jacobian J_segment(NUM_JOINTS);
+            solver_->compute_jac(q_kdl_, J_segment, frame_idx);
+            Eigen::Matrix<double,3,NUM_JOINTS> J_segment_eigen;
+
+            // Getting the top three rows for the linear velocity part
+            J_segment_eigen.row(0) = J_segment.data.row(0);
+            J_segment_eigen.row(1) = J_segment.data.row(1);
+            J_segment_eigen.row(2) = J_segment.data.row(2);
+
+            // Spherical obstacle
+            if (obs.shape_type == custom_msgs::msg::Obstacle::SPHERE) {
+                // Sphere radius
+                double obs_r = obs.radius;
+                /**
+                 * TODO: spherical object avoidance
+                 */
+
+                // Distance to the surface of the sphere from the segment
+                d_ = std::pow((p_segment - p_obs).norm(), 2) - std::pow(obs_r, 2);
+                dprime_vec_ = 2*(p_segment - p_obs).transpose() * J_segment_eigen;
+
+                for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
+                    // Lets use a constant threshold for obstacles at 20cm
+                    tau_rep_(i) += RepulsiveForce(d_, dprime_vec_(i), 0.20, 0.1);
+                }
+            }
+            // Box obstacle (such as wall)
+            else if (obs.shape_type == custom_msgs::msg::Obstacle::BOX) {
+                // Box dimensions vector
+                Eigen::Vector3d box_size(obs.box_size.at(0), obs.box_size.at(1), obs.box_size.at(2));
+                /**
+                 * TODO: box obstacle avoidance
+                 */
+                // Checking which corner is closest to the segment
+                Eigen::Vector3d half_size = box_size * 0.5;
+            
+                // closest point on box to robot point p
+                Eigen::Vector3d p_o;
+            
+                p_o.x() = std::clamp(
+                p_segment.x(),
+                p_obs.x() - half_size.x(),
+                p_obs.x() + half_size.x());
+            
+                p_o.y() = std::clamp(
+                p_segment.y(),
+                p_obs.y() - half_size.y(),
+                p_obs.y() + half_size.y());
+            
+                p_o.z() = std::clamp(
+                p_segment.z(),
+                p_obs.z() - half_size.z(),
+                p_obs.z() + half_size.z());
+            
+                d_ = std::pow((p_segment - p_o).norm(), 2);
+                dprime_vec_ = 2*(p_segment - p_o).transpose() * J_segment_eigen;
+
+                for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
+                    tau_rep_(i) += RepulsiveForce(d_, dprime_vec_(i), 0.20, 0.1);
+                }
+
+            }
         }
-        // Box obstacle (such as wall)
-        else if (obs.shape_type == custom_msgs::msg::Obstacle::BOX) {
-            // Box dimensions vector
-            Eigen::Vector3d box_size(obs.box_size.at(0), obs.box_size.at(1), obs.box_size.at(2));
-            /**
-             * TODO: box obstacle avoidance
-             */
-        }
+            
     }
 
     /**
      * TODO: final torque command
      */
+    tau_ = tau_att_ + tau_rep_;
 
     // Send torque commands to the hardware command interface
     for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
-        command_interfaces_[i].set_value(0.0);
+        command_interfaces_[i].set_value(tau_(i));
     }
 
     publish_markers();

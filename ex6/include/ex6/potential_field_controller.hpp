@@ -25,6 +25,8 @@
 #include <kdl/tree.hpp>
 #include <kdl/chain.hpp>
 
+#include <cmath>
+
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
 namespace ex6 {
@@ -78,8 +80,32 @@ class PotentialFieldController : public controller_interface::ControllerInterfac
         KDL::JntArray q_dot_kdl_;
         KDL::Frame xd_kdl_;
 
-        double elapsed_time_{0.0};
+        // Own variables
+        KDL::JntArray G_compensation_kdl_;
+        KDL::JntArray q_goal_kdl_;
+        double d_;
+        double dprime_;
+        Vector7d dprime_vec_;
+        Vector7d tau_att_;
+        Vector7d tau_rep_;
+        Vector7d tau_;
+        Vector7d F_rep_;
+        const double Kp_ = 25; // Follows from the K_d tuning
+        const double Kd_ = 2*0.9*5; // Damping ratio = 0.9, desired_bandwith = 5 rad/s
+        Vector7d q_min_ = Vector7d{
+            -2.8973, -1.7628, -2*M_PI, -2*M_PI, -2*M_PI, -2*M_PI, -2*M_PI};
+        Vector7d q_max_ = Vector7d{
+            2.8973, 1.7628, 2*M_PI, 2*M_PI, 2*M_PI, 2*M_PI, 2*M_PI};
+        Vector7d G_compensation;
+        Vector7d q;
+        Vector7d q_dot;
+        Vector7d q_d;
 
+
+        double elapsed_time_{0.0};
+        
+        // Own functions
+        double RepulsiveForce(double d, double ddot, double threshold_distance, double k_RPF);
         // Subscriber callbacks
         void goal_pose_callback(const std::shared_ptr<geometry_msgs::msg::PoseStamped> msg);
         void init_obstacle_callback(const custom_msgs::msg::ObstacleArray msg);

@@ -102,8 +102,8 @@ class ImpedanceController : public controller_interface::ControllerInterface {
 
         // ex7 desired params
         Eigen::Matrix<double, 6, 6> Md_;
-        double wn_ = 10.0;
-        double zeta_ = 1.0;
+        double wn_ = 3.0;
+        double zeta_ = 0.8;
 
         double elapsed_time_{0.0};
 

@@ -71,23 +71,27 @@ controller_interface::return_type ImpedanceController::update(
         h_e_ = h_e_old_ + 0.8 * (h_e_ - h_e_old_);
         h_e_old_ = h_e_;
 
-        /**
-         * TODO: Rotate the measurement vector from sensor frame to base frame
-         * hint: h_e_ measurement consists of two 3D vectors
-         */
+        // Transform wrench from sensor frame to base frame using the Adjoint
+        //   [ R   0  ]
+        //   [ p_hat*R  R ]
+        // where p_hat is the skew-symmetric cross-product matrix of the
+        // sensor position expressed in the base frame.
+        KDL::Vector p = x_kdl_.p;
+        Eigen::Matrix<double, 3, 3> p_hat;
+        p_hat << 0, -p.z(), p.y(),
+                 p.z(), 0, -p.x(),
+                -p.y(), p.x(), 0;
+        Eigen::Matrix<double, 3, 3> R;
+        R << x_kdl_.M.data[0], x_kdl_.M.data[1], x_kdl_.M.data[2],
+             x_kdl_.M.data[3], x_kdl_.M.data[4], x_kdl_.M.data[5],
+             x_kdl_.M.data[6], x_kdl_.M.data[7], x_kdl_.M.data[8];
+        Eigen::Matrix<double, 6, 6> Adj;
+        Adj.block<3,3>(0,0) = R;
+        Adj.block<3,3>(0,3).setZero();
+        Adj.block<3,3>(3,0) = p_hat * R;
+        Adj.block<3,3>(3,3) = R;
 
-        W_.setZero();
-
-        for (int i = 0; i < 3; ++i)
-        {
-            for (int j = 0; j < 3; ++j)
-            {
-                W_(i,j) = x_kdl_.M(i,j);
-                W_(i+3,j+3) = x_kdl_.M(i,j);
-            }
-        }
-
-        h_e_ = W_ * h_e_;
+        h_e_ = Adj * h_e_;
         
     }
     else {
@@ -122,7 +126,7 @@ controller_interface::return_type ImpedanceController::update(
     // Calculate u and tau
     solver_->get_damped_pseudo_inverse(J_, J_pinv_);
     u_ = J_pinv_ * Md_.inverse() * (Md_ * xd_ddot_ + Kd_ * x_dot_tilde_ + Kp_ * x_tilde_ - Md_ * (J_dot_ * q_dot_) - h_e_);
-    tau_pos_ = M_ * u_ + C_ + G_ + J_.transpose() * h_e_;
+    tau_pos_ = M_ * u_ + C_ + G_;
     tau_ = tau_pos_ + tau_null_;
 
     // Send torque commands to the hardware command interface
@@ -288,6 +292,7 @@ CallbackReturn ImpedanceController::on_activate(
     q_dot_kdl_.resize(NUM_JOINTS);
     W_.setZero();
     Md_.setIdentity();
+    Md_ = Md_ * 0.2;
 
     // Initialize realtime buffer
     auto xd = std::make_shared<KDL::Frame>();

@@ -65,6 +65,12 @@ ros2 param set /<node_name> use_force_measurement <bool>
 Node name is either `impedance_controller`, `admittance_controller` or `direct_force_controller` and bool is either `true` or `false`.
 
 ```bash
+cd ~/ros2_ws
 source install/setup.bash
 ros2 run goal_publishers goal_pose_publisher.py
+```
+```bash
+cd ~/ros2_ws
+source install/setup.bash
+ros2 run goal_publishers pose_trajectory_publisher.py
 ```

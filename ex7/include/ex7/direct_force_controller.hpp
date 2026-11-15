@@ -42,10 +42,12 @@ class DirectForceController : public controller_interface::ControllerInterface {
         // Non-RT (realtime) subscriber
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr goal_pose_subscriber_;
         rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr force_torque_subscriber_;
+        rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr fake_wrench_subscriber_;
         
         // Buffer for RT update() loop (store a shared_ptr instead of the message itself -> less copying)
         realtime_tools::RealtimeBuffer<std::shared_ptr<KDL::Frame>> rt_goal_pose_buffer_;
         realtime_tools::RealtimeBuffer<std::shared_ptr<Vector6d>> rt_force_torque_;
+        realtime_tools::RealtimeBuffer<std::shared_ptr<Vector6d>> rt_fake_wrench_;
 
         std::string robot_description_;
         std::vector<std::string> command_interface_types_;
@@ -91,13 +93,41 @@ class DirectForceController : public controller_interface::ControllerInterface {
 
         double elapsed_time_{0.0};
 
+        // ex7 added
+        Vector6d z_tilde_ = Vector6d::Zero();
+        Vector6d z_dot_tilde_ = Vector6d::Zero();
+        Vector7d u_;
+        Vector6d h_d_ = Vector6d::Zero();
+
+        Eigen::Matrix<double,6,6> Mt_;
+        Eigen::Matrix<double,6,6> Md_;
+        Eigen::Matrix<double,6,6> Kf_;
+        Eigen::Matrix<double,6,6> Kp_;
+        Eigen::Matrix<double,6,6> Kd_;
+        Eigen::Matrix<double,6,6> KPt_;  // task-space stiffness for the force-error admittance
+        Eigen::Matrix<double,6,6> KDt_;  // task-space damping for the force-error admittance
+        Eigen::Matrix<double, 6, 6> S_;
+
+        double wn_dfc_ = 10.0;
+        double wn_ = 3.0;
+        double zeta_ = 0.8;
+
+        Vector6d xd_ddot_ = Vector6d::Zero();
+        Vector6d x_dot_tilde_;
+        Vector6d x_dot_;
+        Vector6d x_tilde_;
+
+        KDL::Frame Tg_;
+
         // For writing the parameter on non-RT thread and reading it in RT update() loop
-        std::atomic<bool> use_force_measurement_{false};
+        std::atomic<bool> use_force_measurement_{true};
+        std::atomic<bool> use_fake_wrench_{false};
         rclcpp::Node::OnSetParametersCallbackHandle::SharedPtr parameter_callback_handle_;
 
         // Subscriber callbacks
         void goal_pose_callback(const std::shared_ptr<geometry_msgs::msg::PoseStamped> msg);
         void force_torque_callback(const std::shared_ptr<geometry_msgs::msg::WrenchStamped> msg);
+        void fake_wrench_callback(const std::shared_ptr<geometry_msgs::msg::WrenchStamped> msg);
 
         // Read joint states from the hardware state interface
         void updateJointStates();

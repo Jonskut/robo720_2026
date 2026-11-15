@@ -163,8 +163,7 @@ controller_interface::return_type AdmittanceController::update(
         (Md_ * xd_ddot_
         + Kd_ * x_dot_tilde_
         + Kp_ * x_tilde_
-        - Md_ * (J_dot_ * q_dot_)
-        - h_e_);
+        - Md_ * (J_dot_ * q_dot_));
 
     tau_pos_ = M_ * u_ + C_ + G_;
 

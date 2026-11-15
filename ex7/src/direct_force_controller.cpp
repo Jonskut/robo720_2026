@@ -46,26 +46,83 @@ controller_interface::return_type DirectForceController::update(
     xd_kdl_ = *rt_goal_pose_buffer_.readFromRT()->get();
 
     if (use_force_measurement_.load()) {
-        h_e_ = *rt_force_torque_.readFromRT()->get();
+        // Read the force measurement
+        if (use_fake_wrench_.load()) {
+            h_e_ = *rt_fake_wrench_.readFromRT()->get();
+        }
+        else {
+            h_e_ = *rt_force_torque_.readFromRT()->get();
+        }
 
         // Low-pass filter force measurement
         h_e_ = h_e_old_ + 0.8 * (h_e_ - h_e_old_);
         h_e_old_ = h_e_;
 
-        /**
-         * TODO: Rotate sensor measurement from sensor frame to base frame
-         */
+        // Transform wrench from sensor frame to base frame using the Adjoint
+        KDL::Vector p = x_kdl_.p;
+        Eigen::Matrix<double, 3, 3> p_hat;
+        p_hat << 0, -p.z(), p.y(),
+                p.z(), 0, -p.x(),
+                -p.y(), p.x(), 0;
+        Eigen::Matrix<double, 3, 3> R;
+        R << x_kdl_.M.data[0], x_kdl_.M.data[1], x_kdl_.M.data[2],
+            x_kdl_.M.data[3], x_kdl_.M.data[4], x_kdl_.M.data[5],
+            x_kdl_.M.data[6], x_kdl_.M.data[7], x_kdl_.M.data[8];
+        Eigen::Matrix<double, 6, 6> Adj;
+        Adj.block<3,3>(0,0) = R;
+        Adj.block<3,3>(0,3).setZero();
+        Adj.block<3,3>(3,0) = p_hat * R;
+        Adj.block<3,3>(3,3) = R;
 
-        /**
-         * TODO: Compute force controlled desired frame T_f.
-         * hint: integrate the error between measured and desired force with equation 14.
-         * Don't forget about the selection matrix S.
-         * Then compute the error in task space.
-         */
+        h_e_ = Adj * h_e_;
+        // gains
+        Kf_ = 1.0 * (Mt_ * (wn_dfc_ * wn_dfc_));
+
+        Kp_ = 1.0 * Md_ * (wn_ * wn_);
+        Kd_ = 1.0 * (2.0 * zeta_ * (Kp_ * Md_).cwiseSqrt());
+
+        // Force-error admittance: Mt * z_ddot + KDt * z_dot + KPt * z = h_d - h_e
+        // (a proper damped second-order system, NOT a bare integrator)
+        Vector6d z_tilde_ddot = Mt_.inverse() *
+                                ((h_d_ - h_e_) - KDt_ * z_dot_tilde_ - KPt_ * z_tilde_);
+        z_dot_tilde_ += z_tilde_ddot * dt;
+        z_tilde_ += z_dot_tilde_ * dt;
+
+        // Clamp the compliant offset so the reference cannot run away
+        const double z_limit = 0.05;  // 5 cm / 5 rad maximum offset from the goal
+        for (int i = 0; i < 6; ++i) {
+            z_tilde_(i) = std::clamp(z_tilde_(i), -z_limit, z_limit);
+        }
+
+        Vector6d z_selected = S_ * z_tilde_;
+    
+        KDL::Twist z_twist(
+            KDL::Vector(
+                z_selected(0),
+                z_selected(1),
+                z_selected(2)),
+            KDL::Vector(
+                z_selected(3),
+                z_selected(4),
+                z_selected(5)));
+
+        Tg_ = KDL::addDelta(xd_kdl_,
+                            z_twist,
+                            1.0);
+
+        KDL::Twist x_error = KDL::diff(x_kdl_, Tg_);
+    
+        for(int i = 0; i < 6; ++i)
+        {
+            x_tilde_(i) = x_error(i);
+        }
     }
     else {
         // Error in task space
         xe_kdl_ = KDL::diff(x_kdl_, xd_kdl_);
+        for (int i = 0; i < 6; ++i) {
+            x_tilde_(i) = xe_kdl_(i);
+        }
     }
 
     // Get dynamics parameters and Jacobian
@@ -99,6 +156,19 @@ controller_interface::return_type DirectForceController::update(
     /**
      * TODO: compute tau_pos_ with inverse dynamics controller
      */
+    x_dot_ = J_ * q_dot_;
+    x_dot_tilde_ = -x_dot_;
+
+    solver_->get_damped_pseudo_inverse(J_, J_pinv_);
+
+    u_ = J_pinv_ * Md_.inverse() *
+        (Md_ * xd_ddot_
+        + Kd_ * x_dot_tilde_
+        + Kp_ * x_tilde_
+        - Md_ * (J_dot_ * q_dot_));
+
+    tau_pos_ = M_ * u_ + C_ + G_;
+
     tau_ = tau_pos_ + tau_null_;
 
     // Send torque commands to the hardware command interface
@@ -120,8 +190,6 @@ CallbackReturn DirectForceController::on_init() {
 
         root_link_ = auto_declare<std::string>("root_link", root_link_);
         tip_link_ = auto_declare<std::string>("tip_link", tip_link_);
-
-        auto_declare<bool>("use_force_measurement", false);
     } 
     catch (const std::exception& e) {
         fprintf(stderr, "Exception thrown during init stage (on_init) with message: %s \n", e.what());
@@ -252,6 +320,25 @@ CallbackReturn DirectForceController::on_activate(
     J_dot_kdl_.resize(NUM_JOINTS);
     q_kdl_.resize(NUM_JOINTS);
     q_dot_kdl_.resize(NUM_JOINTS);
+
+    Mt_.setIdentity();
+    Mt_ *= 2.0;
+
+    Md_.setIdentity();
+    Md_ *= 1.0;
+
+    KPt_.setIdentity();
+    KPt_ *= (wn_dfc_ * wn_dfc_);   // task-space stiffness (~100 * I)
+
+    KDt_.setIdentity();
+    KDt_ = 2.0 * 0.8 * (KPt_ * Mt_).cwiseSqrt();  // critical damping (~32 * I)
+
+    S_.setZero();
+    S_(2,2) = 1.0;
+
+    h_d_(2) = 5.0;
+
+    z_tilde_.setZero();
 
     // Initialize realtime buffer
     auto xd = std::make_shared<KDL::Frame>();

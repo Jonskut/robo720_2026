@@ -108,7 +108,7 @@ class DirectForceController : public controller_interface::ControllerInterface {
         Eigen::Matrix<double,6,6> KDt_;  // task-space damping for the force-error admittance
         Eigen::Matrix<double, 6, 6> S_;
 
-        double wn_dfc_ = 10.0;
+        double wn_dfc_ = 3.0;
         double wn_ = 3.0;
         double zeta_ = 0.8;
 

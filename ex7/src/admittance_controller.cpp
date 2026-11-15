@@ -61,17 +61,67 @@ controller_interface::return_type AdmittanceController::update(
      * TODO: Rotate from sensor frame to desired pose frame.
      * hint: we can do two separate rotations, like when chaining transforms
      */
+     KDL::Vector p = x_kdl_.p;
+     Eigen::Matrix<double, 3, 3> p_hat;
+     p_hat << 0, -p.z(), p.y(),
+              p.z(), 0, -p.x(),
+             -p.y(), p.x(), 0;
+     Eigen::Matrix<double, 3, 3> R;
+     R << x_kdl_.M.data[0], x_kdl_.M.data[1], x_kdl_.M.data[2],
+          x_kdl_.M.data[3], x_kdl_.M.data[4], x_kdl_.M.data[5],
+          x_kdl_.M.data[6], x_kdl_.M.data[7], x_kdl_.M.data[8];
+     Eigen::Matrix<double, 6, 6> Adj;
+     Adj.block<3,3>(0,0) = R;
+     Adj.block<3,3>(0,3).setZero();
+     Adj.block<3,3>(3,0) = p_hat * R;
+     Adj.block<3,3>(3,3) = R;
 
+     h_e_ = Adj * h_e_;
     /**
      * TODO: Compute the compliant frame.
      * hint: use equations 11-13 from the assignment to get z_tilde and integrate
      * to get compliant frame with code snippets shown in assignment.
      * You can also use ODE solver to get z_tilde.
      */
+    // ex7 added
+    // gains
+    KPt_ = 1.0 * (Mt_ * (wn_admittance_ * wn_admittance_));
+    KDt_ = 1.0 * (2.0 * zeta_admittance_ * (KPt_ * Mt_).cwiseSqrt());
 
+    Kp_ = 1.0 * Md_ * (wn_ * wn_);
+    Kd_ = 1.0 * (2.0 * zeta_ * (Kp_ * Md_).cwiseSqrt());
+
+    // z_tilde = diff(Tdesired, Tcompliant)
+    z_tilde_ddot_ = Mt_.inverse() *
+                    (h_e_ - KDt_ * 
+                     z_tilde_dot_ - KPt_ *
+                     z_tilde_);
+    z_tilde_dot_ += z_tilde_ddot_ * dt;
+    z_tilde_ += z_tilde_dot_ * dt;
+    
+    KDL::Twist z_twist(
+        KDL::Vector(
+            -z_tilde_(0),
+            -z_tilde_(1),
+            -z_tilde_(2)),
+        KDL::Vector(
+            -z_tilde_(3),
+            -z_tilde_(4),
+            -z_tilde_(5)));
+
+    Tt_ = xd_kdl_ * KDL::addDelta(
+                    KDL::Frame::Identity(), 
+                    z_twist, 
+                    1.0);
     /**
      * TODO: Compute error in task space.
      */
+    KDL::Twist x_error = KDL::diff(x_kdl_, Tt_);
+
+    for(int i = 0; i < 6; ++i)
+    {
+        x_tilde_(i) = x_error(i);
+    }
 
     // Get dynamics parameters and Jacobian
     solver_->compute_dyn_params(q_kdl_, q_dot_kdl_, M_kdl_, G_kdl_, C_kdl_);
@@ -104,6 +154,20 @@ controller_interface::return_type AdmittanceController::update(
     /**
      * TODO: compute tau_pos_ with inverse dynamics controller
      */
+    x_dot_ = J_ * q_dot_;
+    x_dot_tilde_ = -x_dot_;
+
+    solver_->get_damped_pseudo_inverse(J_, J_pinv_);
+
+    u_ = J_pinv_ * Md_.inverse() *
+        (Md_ * xd_ddot_
+        + Kd_ * x_dot_tilde_
+        + Kp_ * x_tilde_
+        - Md_ * (J_dot_ * q_dot_)
+        - h_e_);
+
+    tau_pos_ = M_ * u_ + C_ + G_;
+
     tau_ = tau_pos_ + tau_null_;
 
     // Send torque commands to the hardware command interface
@@ -272,6 +336,17 @@ CallbackReturn AdmittanceController::on_activate(
     rt_force_torque_.writeFromNonRT(h_e_ptr);
     rt_fake_wrench_.writeFromNonRT(h_e_ptr);
     h_e_old_ = Vector6d::Zero();
+
+    // ex7 added
+    Mt_.setIdentity();
+    Mt_ *= 2.0;
+
+    Md_.setIdentity();
+    Md_ *= 1.0;
+
+    z_tilde_.setZero();
+    z_tilde_dot_.setZero();
+    z_tilde_ddot_.setZero();
 
     return CallbackReturn::SUCCESS;
 }

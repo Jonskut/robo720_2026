@@ -90,6 +90,31 @@ class AdmittanceController : public controller_interface::ControllerInterface {
         KDL::Frame x_kdl_;
         KDL::Frame xd_kdl_;
 
+        // ex7 added
+        Vector6d z_tilde_ = Vector6d::Zero();
+        Vector6d z_tilde_dot_ = Vector6d::Zero();
+        Vector6d z_tilde_ddot_ = Vector6d::Zero();
+        Vector7d u_;
+
+        Eigen::Matrix<double,6,6> Mt_;
+        Eigen::Matrix<double,6,6> Md_;
+        Eigen::Matrix<double,6,6> KPt_;
+        Eigen::Matrix<double,6,6> KDt_;
+        Eigen::Matrix<double,6,6> Kp_;
+        Eigen::Matrix<double,6,6> Kd_;
+
+        double wn_admittance_ = 10.0;
+        double zeta_admittance_ = 1.0;
+        double wn_ = 3.0;
+        double zeta_ = 0.8;
+
+        Vector6d xd_ddot_ = Vector6d::Zero();
+        Vector6d x_dot_tilde_;
+        Vector6d x_dot_;
+        Vector6d x_tilde_;
+
+        KDL::Frame Tt_;
+
         double elapsed_time_{0.0};
 
         // For writing the parameter on non-RT thread and reading it in RT update() loop

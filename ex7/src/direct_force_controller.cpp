@@ -81,12 +81,7 @@ controller_interface::return_type DirectForceController::update(
         Kp_ = 1.0 * Md_ * (wn_ * wn_);
         Kd_ = 1.0 * (2.0 * zeta_ * (Kp_ * Md_).cwiseSqrt());
 
-        // Force-error admittance: Mt * z_ddot + KDt * z_dot + KPt * z = h_d - h_e
-        // (a proper damped second-order system, NOT a bare integrator)
-        Vector6d z_tilde_ddot = Mt_.inverse() *
-                                ((h_d_ - h_e_) - KDt_ * z_dot_tilde_ - KPt_ * z_tilde_);
-        z_dot_tilde_ += z_tilde_ddot * dt;
-        z_tilde_ += z_dot_tilde_ * dt;
+        z_tilde_ += Kf_ * (h_d_ - h_e_) * dt;
 
         // Clamp the compliant offset so the reference cannot run away
         const double z_limit = 0.05;  // 5 cm / 5 rad maximum offset from the goal

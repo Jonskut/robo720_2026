@@ -103,10 +103,10 @@ class AdmittanceController : public controller_interface::ControllerInterface {
         Eigen::Matrix<double,6,6> Kp_;
         Eigen::Matrix<double,6,6> Kd_;
 
-        double wn_admittance_ = 10.0;
-        double zeta_admittance_ = 1.0;
-        double wn_ = 3.0;
-        double zeta_ = 0.8;
+        double wn_admittance_ = 3.0;
+        double zeta_admittance_ = 0.8;
+        double wn_ = 10.0;
+        double zeta_ = 1.0;
 
         Vector6d xd_ddot_ = Vector6d::Zero();
         Vector6d x_dot_tilde_;

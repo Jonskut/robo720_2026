@@ -89,6 +89,21 @@ class ImpedanceController : public controller_interface::ControllerInterface {
         KDL::JntArray q_dot_kdl_;
         KDL::Frame x_kdl_;
         KDL::Frame xd_kdl_;
+        
+        // ex7 added variables
+        Eigen::Matrix<double, 6, 6> W_;
+        Eigen::Matrix<double, 6, 6> Kp_;
+        Eigen::Matrix<double, 6, 6> Kd_;
+        Vector7d u_;
+        Vector6d xd_ddot_ = Vector6d::Zero();
+        Vector6d x_dot_tilde_;
+        Vector6d x_dot_;
+        Vector6d x_tilde_;
+
+        // ex7 desired params
+        Eigen::Matrix<double, 6, 6> Md_;
+        double wn_ = 3.0;
+        double zeta_ = 0.8;
 
         double elapsed_time_{0.0};
 

@@ -1,0 +1,64 @@
+# controller_manager provides the necessary infrastructure to manage multiple controllers efficiently and robustly using ROS 2 Control.
+controller_manager:
+  ros__parameters:
+    update_rate: 1000 # Hz
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    project_controller:
+      type: project/ProjectController
+
+project_controller:
+  ros__parameters:
+    joints:
+      - fr3_joint1
+      - fr3_joint2
+      - fr3_joint3
+      - fr3_joint4
+      - fr3_joint5
+      - fr3_joint6
+      - fr3_joint7
+    command_interfaces:
+      - effort
+    state_interfaces:
+      - position
+      - velocity
+    root_link: "fr3_link0"
+    tip_link: "fr3_link8"
+    optical_link: "fr3_camera_link_optical"
+    # Task-space (visual servoing) gains [x y z rx ry rz]
+    p_gains:
+      - 1.4
+      - 1.4
+      - 1.4
+      - 1.4
+      - 1.4
+      - 1.4
+    d_gains:
+      - 10.0
+      - 10.0
+      - 10.0
+      - 10.0
+      - 10.0
+      - 10.0
+      - 10.0
+    # Offset applied above the detected ArUco head (in base frame) [x y z]
+    # Small positive z -> end effector sits just above the head (compliant pat contact)
+    wait_offset:
+      - 0.0
+      - 0.0
+      - 0.02
+    # Orientation of the end effector above the head (roll pitch yaw)
+    # roll=pi -> end-effector z-axis points straight down
+    wait_orientation:
+      - 3.14159
+      - 0.0
+      - 0.0
+    # Potential-field obstacle avoidance
+    apf_threshold: 0.12   # distance threshold for repulsive field [m]
+    apf_k: 2.0            # repulsive gain
+    # Impedance (compliance) parameters
+    impedance_wn: 3.0     # natural frequency
+    impedance_zeta: 0.8   # damping ratio
+    impedance_md: 0.2     # desired inertia scaling

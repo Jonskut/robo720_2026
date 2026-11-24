@@ -13,7 +13,7 @@ class ArucoView(Node):
         self.declare_parameter('camera_info_topic', '/camera/camera_info')
         self.declare_parameter('dictionary', 'DICT_4X4_50')
         self.declare_parameter('marker_id', 0)
-        self.declare_parameter('marker_length_m', 0.15)
+        self.declare_parameter('marker_length_m', 0.1026)
 
         it = self.get_parameter('image_topic').value
         ct = self.get_parameter('camera_info_topic').value

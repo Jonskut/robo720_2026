@@ -85,10 +85,11 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
-# Python executables (pose estimation + static obstacle publisher)
+# Python executables (pose estimation + static obstacle publisher + conveyor animation)
 install(PROGRAMS
   scripts/pose_estimate.py
   scripts/obstacle_publisher.py
+  scripts/conveyor.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

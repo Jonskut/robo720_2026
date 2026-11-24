@@ -3,6 +3,7 @@
 #include "franka_kdl/solver.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <exception>
 #include <functional>
@@ -43,36 +44,86 @@ controller_interface::return_type ProjectController::update(
   updateJointStates();
 
   const double dt = period.seconds();
-  elapsed_time_ = elapsed_time_ + dt;
+  elapsed_time_ += dt;
+  pat_state_elapsed_ += dt;
 
   // Save current state to KDL variables for solvers
   for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
     q_kdl_(i) = position_interface_vals_(i);
     q_dot_kdl_(i) = velocity_interface_vals_(i);
-    q_camera_(i) = position_interface_vals_(i);
   }
 
   // Current EE pose
   solver_->computeFK(q_kdl_, x_kdl_);
-  // Camera (wrist) pose in base frame
-  camera_solver_->computeFK(q_camera_, T_base_cam_);
 
-  // ================= ex5: visual servoing -> goal pose =================
-  if (marker_detected_.load()) {
-    // Read the marker pose in camera optical frame
+  const std::int64_t marker_time_ns = last_valid_marker_ns_.load();
+  const std::int64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+      std::chrono::steady_clock::now().time_since_epoch()).count();
+  const std::int64_t marker_age_ns = now_ns - marker_time_ns;
+  const bool marker_available =
+      marker_time_ns > 0 && marker_age_ns >= 0 &&
+      marker_age_ns <= static_cast<std::int64_t>(marker_timeout_ * 1e9);
+  const bool marker_detected = marker_detected_.load();
+
+  // ================= ex5: visual servoing -> task targets =================
+  if (marker_detected && marker_available) {
     T_cam_marker_ = *rt_marker_pose_buffer_.readFromRT()->get();
-    // Transform marker pose into robot base coordinates
-    KDL::Frame T_base_marker = T_base_cam_ * T_cam_marker_;
-    // Fixed end-effector orientation pointing down + offset above the head
-    KDL::Rotation R_off = KDL::Rotation::RPY(
-        wait_orientation_[0], wait_orientation_[1], wait_orientation_[2]);
-    xd_kdl_ = KDL::Frame(
+    T_base_marker_ = T_base_cam_ * T_cam_marker_;
+  }
+
+  const KDL::Rotation R_off = KDL::Rotation::RPY(
+      wait_orientation_[0], wait_orientation_[1], wait_orientation_[2]);
+  const auto target_at_offset = [this, &R_off](const std::vector<double>& offset) {
+    return KDL::Frame(
         R_off,
-        T_base_marker.p +
-        KDL::Vector(wait_offset_[0], wait_offset_[1], wait_offset_[2]));
-  } else {
-    // No marker: hold the last commanded pose (settable via /goal_pose)
-    xd_kdl_ = *rt_goal_pose_buffer_.readFromRT()->get();
+        T_base_marker_.p + KDL::Vector(offset[0], offset[1], offset[2]));
+  };
+  const KDL::Frame hover_target = target_at_offset(wait_offset_);
+  const KDL::Frame pat_target = target_at_offset(pat_offset_);
+
+  switch (pat_state_) {
+    case PatState::WAITING:
+      if (marker_detected && marker_available && elapsed_time_ >= next_pat_time_) {
+        manual_goal_available_.store(false);
+        pat_state_ = PatState::APPROACHING;
+        pat_state_elapsed_ = 0.0;
+        xd_kdl_ = hover_target;
+      } else if (manual_goal_available_.load()) {
+        xd_kdl_ = *rt_goal_pose_buffer_.readFromRT()->get();
+      }
+      break;
+
+    case PatState::APPROACHING:
+      xd_kdl_ = hover_target;
+      if (!marker_available) {
+        pat_state_ = PatState::RETREATING;
+        pat_state_elapsed_ = 0.0;
+      } else if ((x_kdl_.p - hover_target.p).Norm() < approach_tolerance_) {
+        pat_state_ = PatState::PATTING;
+        pat_state_elapsed_ = 0.0;
+        xd_kdl_ = pat_target;
+      }
+      break;
+
+    case PatState::PATTING:
+      if (!marker_available || pat_state_elapsed_ >= pat_duration_) {
+        pat_state_ = PatState::RETREATING;
+        pat_state_elapsed_ = 0.0;
+        xd_kdl_ = hover_target;
+      } else {
+        xd_kdl_ = pat_target;
+      }
+      break;
+
+    case PatState::RETREATING:
+      xd_kdl_ = hover_target;
+      if ((x_kdl_.p - hover_target.p).Norm() < approach_tolerance_ ||
+          pat_state_elapsed_ >= retreat_timeout_) {
+        pat_state_ = PatState::WAITING;
+        pat_state_elapsed_ = 0.0;
+        next_pat_time_ = elapsed_time_ + repeat_delay_;
+      }
+      break;
   }
 
   // ================= ex7: dynamics + Jacobian =================
@@ -161,32 +212,54 @@ controller_interface::return_type ProjectController::update(
       KDL::Jacobian J(NUM_JOINTS);
       solver_->compute_jac(q_kdl_, J, frame_idx);
       Eigen::Matrix<double, 3, NUM_JOINTS> Jp = J.data.topRows(3);
+      const auto accumulate_repulsion = [this](
+          double distance,
+          const Eigen::RowVector<double, NUM_JOINTS>& distance_prime) {
+        for (std::size_t j = 0; j < NUM_JOINTS; ++j) {
+          tau_rep_(j) += repulsiveAPF(distance, distance_prime(j));
+        }
+      };
 
       // Spherical obstacle
       if (obs.shape_type == custom_msgs::msg::Obstacle::SPHERE) {
-        double obs_r = obs.radius;
-        Eigen::Vector3d diff = p - p_obs;
-        Eigen::Vector3d p_o = p_obs + obs_r * diff.normalized();
-        Eigen::Vector3d delta = p - p_o;
-        double D = delta.squaredNorm();
-        Eigen::RowVector<double, NUM_JOINTS> D_prime = 2.0 * delta.transpose() * Jp;
-        for (size_t j = 0; j < NUM_JOINTS; ++j) {
-          tau_rep_(j) += repulsiveAPF(D, D_prime(j));
+        const Eigen::Vector3d diff = p - p_obs;
+        const double center_distance = diff.norm();
+        Eigen::Vector3d direction = Eigen::Vector3d::UnitX();
+        if (center_distance > 1e-6) {
+          direction = diff / center_distance;
         }
+        const double clearance = center_distance - obs.radius;
+        const Eigen::RowVector<double, NUM_JOINTS> clearance_prime = direction.transpose() * Jp;
+        accumulate_repulsion(clearance, clearance_prime);
       }
       // Box obstacle (big box on the conveyor)
       else if (obs.shape_type == custom_msgs::msg::Obstacle::BOX) {
         Eigen::Vector3d box_size(obs.box_size.at(0), obs.box_size.at(1), obs.box_size.at(2));
         Eigen::Vector3d half_size = box_size * 0.5;
-        Eigen::Vector3d p_o;
-        p_o.x() = std::clamp(p.x(), p_obs.x() - half_size.x(), p_obs.x() + half_size.x());
-        p_o.y() = std::clamp(p.y(), p_obs.y() - half_size.y(), p_obs.y() + half_size.y());
-        p_o.z() = std::clamp(p.z(), p_obs.z() - half_size.z(), p_obs.z() + half_size.z());
-        Eigen::Vector3d diff = p - p_o;
-        double D = diff.squaredNorm();
-        Eigen::RowVector<double, NUM_JOINTS> D_prime = 2.0 * diff.transpose() * Jp;
-        for (size_t j = 0; j < NUM_JOINTS; ++j) {
-          tau_rep_(j) += repulsiveAPF(D, D_prime(j));
+        const Eigen::Vector3d local = p - p_obs;
+        const bool inside =
+            (local.cwiseAbs().array() <= half_size.array()).all();
+        if (inside) {
+          Eigen::Index axis = 0;
+          double face_clearance = half_size.x() - std::abs(local.x());
+          for (Eigen::Index i = 1; i < 3; ++i) {
+            const double candidate = half_size(i) - std::abs(local(i));
+            if (candidate < face_clearance) {
+              axis = i;
+              face_clearance = candidate;
+            }
+          }
+          Eigen::Vector3d outward = Eigen::Vector3d::Zero();
+          outward(axis) = local(axis) >= 0.0 ? 1.0 : -1.0;
+          const Eigen::RowVector<double, NUM_JOINTS> clearance_prime = outward.transpose() * Jp;
+          accumulate_repulsion(-face_clearance, clearance_prime);
+        } else {
+          const Eigen::Vector3d closest = local.cwiseMax(-half_size).cwiseMin(half_size);
+          const Eigen::Vector3d delta = local - closest;
+          const double distance = delta.norm();
+          const Eigen::RowVector<double, NUM_JOINTS> clearance_prime =
+              delta.transpose() * Jp / std::max(distance, 1e-6);
+          accumulate_repulsion(distance, clearance_prime);
         }
       }
     }
@@ -215,11 +288,17 @@ CallbackReturn ProjectController::on_init() {
         "state_interfaces", state_interface_types_);
     root_link_ = auto_declare<std::string>("root_link", root_link_);
     tip_link_ = auto_declare<std::string>("tip_link", tip_link_);
-    optical_link_ = auto_declare<std::string>("optical_link", optical_link_);
     p_gains_ = auto_declare<std::vector<double>>("p_gains", p_gains_);
     d_gains_ = auto_declare<std::vector<double>>("d_gains", d_gains_);
+    camera_pose_ = auto_declare<std::vector<double>>("camera_pose", camera_pose_);
     wait_offset_ = auto_declare<std::vector<double>>("wait_offset", wait_offset_);
+    pat_offset_ = auto_declare<std::vector<double>>("pat_offset", pat_offset_);
     wait_orientation_ = auto_declare<std::vector<double>>("wait_orientation", wait_orientation_);
+    marker_timeout_ = auto_declare<double>("marker_timeout", marker_timeout_);
+    approach_tolerance_ = auto_declare<double>("approach_tolerance", approach_tolerance_);
+    pat_duration_ = auto_declare<double>("pat_duration", pat_duration_);
+    repeat_delay_ = auto_declare<double>("repeat_delay", repeat_delay_);
+    retreat_timeout_ = auto_declare<double>("retreat_timeout", retreat_timeout_);
   } catch (const std::exception& e) {
     fprintf(stderr, "Exception thrown during init stage (on_init) with message: %s\n", e.what());
     return CallbackReturn::ERROR;
@@ -257,7 +336,6 @@ CallbackReturn ProjectController::on_configure(
   joint_max_.resize(NUM_JOINTS);
   q_kdl_.resize(NUM_JOINTS);
   q_dot_kdl_.resize(NUM_JOINTS);
-  q_camera_.resize(NUM_JOINTS);
   gravity_.resize(NUM_JOINTS);
   q_desired_.resize(NUM_JOINTS);
 
@@ -290,14 +368,15 @@ CallbackReturn ProjectController::on_configure(
     kdl_chain_success_print();
   }
 
-  if (!tree_.getChain(root_link_, optical_link_, base_camera_chain_)) {
-    kdl_chain_error_print();
+  if (camera_pose_.size() != 6) {
+    RCLCPP_ERROR(get_node()->get_logger(), "camera_pose must contain x, y, z, roll, pitch, yaw.");
     return CallbackReturn::ERROR;
   }
 
   solver_.reset(new Solver(chain_));
-  camera_solver_.reset(new Solver(base_camera_chain_));
-  camera_solver_->computeFK(q_camera_, T_base_cam_);
+  T_base_cam_ = KDL::Frame(
+      KDL::Rotation::RPY(camera_pose_[3], camera_pose_[4], camera_pose_[5]),
+      KDL::Vector(camera_pose_[0], camera_pose_[1], camera_pose_[2]));
 
   goal_pose_subscriber_ = get_node()->create_subscription<geometry_msgs::msg::PoseStamped>(
       "goal_pose", rclcpp::SystemDefaultsQoS(),
@@ -395,17 +474,30 @@ CallbackReturn ProjectController::on_activate(
   J_dot_kdl_.resize(NUM_JOINTS);
   q_kdl_.resize(NUM_JOINTS);
   q_dot_kdl_.resize(NUM_JOINTS);
-  q_camera_.resize(NUM_JOINTS);
+  for (std::size_t i = 0; i < NUM_JOINTS; ++i) {
+    q_kdl_(i) = position_interface_vals_(i);
+    q_dot_kdl_(i) = velocity_interface_vals_(i);
+  }
 
   Md_.setIdentity();
   Md_ = Md_ * md_scale_;
   Kp_.setZero();
   Kd_.setZero();
 
-  auto xd = std::make_shared<KDL::Frame>();
-  xd->p = KDL::Vector(0.5, 0.0, 1.0);
-  xd->M = KDL::Rotation::EulerZYX(0.0, 0.0, M_PI);
+  if (solver_->computeFK(q_kdl_, x_kdl_) < 0) {
+    RCLCPP_ERROR(get_node()->get_logger(), "Failed to initialize the hold pose.");
+    return CallbackReturn::ERROR;
+  }
+  xd_kdl_ = x_kdl_;
+  auto xd = std::make_shared<KDL::Frame>(x_kdl_);
   rt_goal_pose_buffer_.writeFromNonRT(xd);
+  T_base_marker_ = KDL::Frame::Identity();
+  pat_state_ = PatState::WAITING;
+  pat_state_elapsed_ = 0.0;
+  next_pat_time_ = elapsed_time_;
+  marker_detected_.store(false);
+  last_valid_marker_ns_.store(0);
+  manual_goal_available_.store(false);
 
   Vector6d h_e = Vector6d::Zero();
   auto h_e_ptr = std::make_shared<Vector6d>(h_e);
@@ -450,11 +542,23 @@ void ProjectController::goal_pose_callback(const std::shared_ptr<geometry_msgs::
       msg->pose.orientation.x, msg->pose.orientation.y,
       msg->pose.orientation.z, msg->pose.orientation.w);
   rt_goal_pose_buffer_.writeFromNonRT(xd);
+  manual_goal_available_.store(true);
 }
 
 // Marker pose in camera optical frame (visual servoing input)
 void ProjectController::marker_pose_callback(const std::shared_ptr<std_msgs::msg::Float64MultiArray> msg) {
-  if (msg->data.size() > 0) {
+  if (msg->data.empty()) {
+    marker_detected_.store(false);
+    return;
+  }
+  if (msg->data.size() != 12) {
+    RCLCPP_WARN(get_node()->get_logger(),
+                "Ignoring marker pose with %zu values; expected 12.", msg->data.size());
+    marker_detected_.store(false);
+    return;
+  }
+
+  {
     double xx, xy, xz, yx, yy, yz, zx, zy, zz, tx, ty, tz;
     xx = msg->data[0], xy = msg->data[1], xz = msg->data[2];
     yx = msg->data[3], yy = msg->data[4], yz = msg->data[5];
@@ -463,9 +567,9 @@ void ProjectController::marker_pose_callback(const std::shared_ptr<std_msgs::msg
     auto T_cam_marker = std::make_shared<KDL::Frame>(
         KDL::Frame(KDL::Rotation(xx, xy, xz, yx, yy, yz, zx, zy, zz), KDL::Vector(tx, ty, tz)));
     rt_marker_pose_buffer_.writeFromNonRT(T_cam_marker);
+    last_valid_marker_ns_.store(std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
     marker_detected_.store(true);
-  } else {
-    marker_detected_.store(false);
   }
 }
 

@@ -58,7 +58,7 @@
         <use_event>true</use_event>
       </plugin>
       <plugin filename="ImageDisplay" name="Image Display">
-        <topic>/camera/image</topic>
+        <topic>/side_camera/image</topic>
       </plugin>
     </gui>
 
@@ -90,45 +90,71 @@
       </link>
     </model>
 
-    <!-- Conveyor belt -->
+    <!-- Conveyor belt, long axis along Y (rotated 90 deg about Z) -->
     <include>
       <uri>model://conveyor</uri>
       <name>conveyor</name>
-      <pose>0.65 0 0 0 0 0</pose>
+      <pose>0.5 0 0.95 0 0 1.5708</pose>
     </include>
 
     <!-- Head 1 on the conveyor, with an ArUco marker on top -->
     <include>
       <uri>model://head</uri>
       <name>head1</name>
-      <pose>0.65 0.0 0.16 0 0 0</pose>
+      <pose>0.5 -0.25 1.0 0 0 0</pose>
     </include>
     <include>
       <uri>model://aruco_marker_0_100mm</uri>
       <name>marker1</name>
-      <pose>0.65 0.0 0.271 0 0 0</pose>
+      <pose>0.5 -0.25 1.23 0 0 0</pose>
     </include>
 
     <!-- Head 2 on the conveyor, with an ArUco marker on top -->
     <include>
       <uri>model://head</uri>
       <name>head2</name>
-      <pose>0.65 0.35 0.16 0 0 0</pose>
+      <pose>0.5 0.25 1.0 0 0 0</pose>
     </include>
     <include>
       <uri>model://aruco_marker_0_100mm</uri>
       <name>marker2</name>
-      <pose>0.65 0.35 0.271 0 0 0</pose>
+      <pose>0.5 0.25 1.23 0 0 0</pose>
     </include>
+
+    <!-- Side-mounted camera stays outside the arm's normal workspace. -->
+    <model name="side_camera">
+      <static>true</static>
+      <pose>0.5 1.2 2.3 0 0.728192 -1.5708</pose>
+      <link name="link">
+        <sensor name="camera" type="camera">
+          <always_on>true</always_on>
+          <update_rate>20</update_rate>
+          <topic>/side_camera/image</topic>
+          <camera>
+            <image>
+              <width>640</width>
+              <height>480</height>
+            </image>
+            <fov>1.4</fov>
+            <clip>
+              <near>0.05</near>
+              <far>6.0</far>
+            </clip>
+          </camera>
+        </sensor>
+      </link>
+    </model>
 
     <!-- Big box obstacle on the conveyor that the arm must dodge -->
     <model name="obstacle_big">
       <static>true</static>
-      <pose>0.65 -0.55 0.5 0 0 0</pose>
+      <pose>0.5 -0.65 1.4 0 0 0</pose>
       <link name="link">
         <visual name="link_visual">
           <geometry>
-            <box><size>0.5 0.5 0.8</size></box>
+            <box>
+              <size>0.5 0.5 0.8</size>
+            </box>
           </geometry>
           <material>
             <diffuse>0.7 0.2 0.2 1</diffuse>
@@ -136,7 +162,9 @@
         </visual>
         <collision name="link_collision">
           <geometry>
-            <box><size>0.5 0.5 0.8</size></box>
+            <box>
+              <size>0.5 0.5 0.8</size>
+            </box>
           </geometry>
         </collision>
       </link>

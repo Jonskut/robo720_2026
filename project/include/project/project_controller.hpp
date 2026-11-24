@@ -5,6 +5,7 @@
 #include "franka_kdl/solver.hpp"
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -48,6 +49,13 @@ public:
   CallbackReturn on_activate(const rclcpp_lifecycle::State& previous_state) override;
 
 private:
+  enum class PatState {
+    WAITING,
+    APPROACHING,
+    PATTING,
+    RETREATING
+  };
+
   // subscribers
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr goal_pose_subscriber_;
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr marker_pose_subscriber_;
@@ -74,11 +82,17 @@ private:
   std::vector<std::string> joint_names_;
   std::string root_link_;
   std::string tip_link_;
-  std::string optical_link_;
   std::vector<double> p_gains_;
   std::vector<double> d_gains_;
+  std::vector<double> camera_pose_;
   std::vector<double> wait_offset_;
+  std::vector<double> pat_offset_;
   std::vector<double> wait_orientation_;
+  double marker_timeout_ = 0.5;
+  double approach_tolerance_ = 0.03;
+  double pat_duration_ = 0.4;
+  double repeat_delay_ = 1.0;
+  double retreat_timeout_ = 2.0;
   double threshold_ = 0.12;
   double k_ = 2.0;
   double wn_ = 3.0;
@@ -90,11 +104,8 @@ private:
   KDL::Chain chain_;
   std::unique_ptr<Solver> solver_;
 
-  // Camera chain (base -> optical link) for visual servoing
-  KDL::Chain base_camera_chain_;
-  std::unique_ptr<Solver> camera_solver_;
+  // Fixed overhead-camera pose in the robot base frame.
   KDL::Frame T_base_cam_;
-  KDL::JntArray q_camera_;
 
   // state
   KDL::JntArray q_kdl_;
@@ -114,7 +125,13 @@ private:
 
   // Visual servoing
   std::atomic<bool> marker_detected_{false};
+  std::atomic<std::int64_t> last_valid_marker_ns_{0};
+  std::atomic<bool> manual_goal_available_{false};
   KDL::Frame T_cam_marker_;
+  KDL::Frame T_base_marker_;
+  PatState pat_state_{PatState::WAITING};
+  double pat_state_elapsed_{0.0};
+  double next_pat_time_{0.0};
 
   // Impedance / dynamics
   Eigen::Matrix<double, NUM_JOINTS, NUM_JOINTS> M_;

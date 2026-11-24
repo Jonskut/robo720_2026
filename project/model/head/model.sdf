@@ -13,6 +13,7 @@
         </material>
       </visual>
       <collision name="collision">
+        <pose>0 0 0.11 0 0 0</pose>
         <geometry>
           <box><size>0.16 0.16 0.22</size></box>
         </geometry>

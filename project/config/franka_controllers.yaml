@@ -26,7 +26,14 @@ project_controller:
       - velocity
     root_link: "fr3_link0"
     tip_link: "fr3_link8"
-    optical_link: "fr3_camera_link_optical"
+    # fr3_link0 is at world z=1.0; this is the side camera's optical pose in that frame.
+    camera_pose:
+      - 0.5
+      - 1.2
+      - 1.3
+      - -2.29899
+      - 0.0
+      - -3.14159
     # Task-space (visual servoing) gains [x y z rx ry rz]
     p_gains:
       - 1.4
@@ -43,18 +50,27 @@ project_controller:
       - 10.0
       - 10.0
       - 10.0
-    # Offset applied above the detected ArUco head (in base frame) [x y z]
-    # Small positive z -> end effector sits just above the head (compliant pat contact)
+    # Hover offset from the detected ArUco head in base frame [x y z].
     wait_offset:
       - 0.0
       - 0.0
-      - 0.02
+      - 0.10
+    # Contact target relative to the marker center; impedance softens contact.
+    pat_offset:
+      - 0.0
+      - 0.0
+      - -0.01
     # Orientation of the end effector above the head (roll pitch yaw)
     # roll=pi -> end-effector z-axis points straight down
     wait_orientation:
       - 3.14159
       - 0.0
       - 0.0
+    marker_timeout: 0.5
+    approach_tolerance: 0.03
+    pat_duration: 0.4
+    repeat_delay: 1.0
+    retreat_timeout: 2.0
     # Potential-field obstacle avoidance
     apf_threshold: 0.12   # distance threshold for repulsive field [m]
     apf_k: 2.0            # repulsive gain

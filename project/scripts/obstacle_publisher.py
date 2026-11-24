@@ -17,9 +17,9 @@ class ObstaclePublisher(Node):
         super().__init__('obstacle_publisher')
         self.declare_parameter('obstacle_name', 'obstacle_big')
         self.declare_parameter('obstacle_shape', 1)          # 1 = BOX
-        self.declare_parameter('obstacle_x', 0.65)
-        self.declare_parameter('obstacle_y', -0.55)
-        self.declare_parameter('obstacle_z', 0.5)
+        self.declare_parameter('obstacle_x', 0.5)
+        self.declare_parameter('obstacle_y', -0.65)
+        self.declare_parameter('obstacle_z', 1.4)
         self.declare_parameter('obstacle_sx', 0.5)
         self.declare_parameter('obstacle_sy', 0.5)
         self.declare_parameter('obstacle_sz', 0.8)

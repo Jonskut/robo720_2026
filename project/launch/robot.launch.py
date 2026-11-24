@@ -33,7 +33,7 @@ def generate_launch_description():
         get_package_share_directory("project"), "world", "project_world.sdf"
     )
 
-    # Robot description from xacro (wrist camera + FT sensor enabled)
+    # Robot description from xacro (FT sensor enabled; vision uses fixed side camera)
     robot_description_xacro = Command([
         PathJoinSubstitution([FindExecutable(name="xacro")]),
         " ",
@@ -49,7 +49,7 @@ def generate_launch_description():
         " ",
         "effort_commands:=true",
         " ",
-        "camera:=true",
+        "camera:=false",
         " ",
         "end_effector:=ft_sensor",
     ])
@@ -74,6 +74,14 @@ def generate_launch_description():
         package="controller_manager",
         executable="spawner",
         arguments=["project_controller", "--controller-manager", "/controller_manager"],
+    )
+
+    # Static TF so frame "map" exists (RViz default fixed frame)
+    static_tf_map_base = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        output="screen",
+        arguments=["0", "0", "0", "0", "0", "0", "map", "base"],
     )
 
     # GZ nodes
@@ -111,8 +119,8 @@ def generate_launch_description():
         output="screen",
         arguments=[
             "/clock@rosgraph_msgs/msg/Clock[ignition.msgs.Clock",
-            "/camera/image@sensor_msgs/msg/Image@ignition.msgs.Image",
-            "/camera/camera_info@sensor_msgs/msg/CameraInfo@ignition.msgs.CameraInfo",
+            "/side_camera/image@sensor_msgs/msg/Image@ignition.msgs.Image",
+            "/side_camera/camera_info@sensor_msgs/msg/CameraInfo@ignition.msgs.CameraInfo",
             "/sensor_joint/force_torque@geometry_msgs/msg/WrenchStamped@ignition.msgs.Wrench",
             "/world/project_world/pose/info@tf2_msgs/msg/TFMessage@ignition.msgs.Pose_V",
         ],
@@ -134,18 +142,26 @@ def generate_launch_description():
         output="screen",
     )
 
-    # ArUco marker pose estimation (visual servoing input)
+    # Conveyor animation: slides the heads (and their markers) back and forth
+    conveyor_node = Node(
+        package="project",
+        executable="conveyor.py",
+        output="screen",
+        parameters=[{"use_sim_time": True}],
+    )
+
+    # ArUco marker pose estimation (visual servoing input) on the fixed side camera
     pose_estimate = Node(
         package="project",
         executable="pose_estimate.py",
         output="screen",
         arguments=[
             "--ros-args",
-            "-p", "image_topic:=/camera/image",
-            "-p", "camera_info_topic:=/camera/camera_info",
+            "-p", "image_topic:=/side_camera/image",
+            "-p", "camera_info_topic:=/side_camera/camera_info",
             "-p", "dictionary:=DICT_4X4_50",
             "-p", "marker_id:=0",
-            "-p", "marker_length_m:=0.15",
+            "-p", "marker_length_m:=0.1026",
         ],
     )
 
@@ -154,12 +170,14 @@ def generate_launch_description():
         robot_state_publisher_node,
         joint_state_broadcaster_spawner,
         project_controller_spawner,
+        static_tf_map_base,
         gz_spawn_entity,
         gz_launch_description,
         rviz_node,
         ros_gz_bridge,
         fake_wrench_publisher,
         obstacle_publisher,
+        conveyor_node,
         pose_estimate,
         SetEnvironmentVariable('IGN_GAZEBO_VERBOSE', '1'),
     ]

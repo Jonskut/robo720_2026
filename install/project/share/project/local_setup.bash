@@ -1,0 +1,1 @@
+/home/student/ros2_ws/src/robo720_2026/build/project/ament_cmake_environment_hooks/local_setup.bash

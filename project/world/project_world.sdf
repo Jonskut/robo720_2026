@@ -1,0 +1,145 @@
+<?xml version="1.0"?>
+
+<sdf version="1.9">
+  <world name="project_world">
+    <plugin
+      filename="ignition-gazebo-physics-system"
+      name="ignition::gazebo::systems::Physics">
+    </plugin>
+    <plugin
+      filename="ignition-gazebo-user-commands-system"
+      name="ignition::gazebo::systems::UserCommands">
+    </plugin>
+    <plugin
+      filename="ignition-gazebo-scene-broadcaster-system"
+      name="ignition::gazebo::systems::SceneBroadcaster">
+    </plugin>
+    <plugin
+      filename="ignition-gazebo-sensors-system"
+      name="ignition::gazebo::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <gui fullscreen="0">
+      <plugin filename="MinimalScene" name="3D View">
+        <gz-gui>
+          <title>3D View</title>
+          <property type="bool" key="showTitleBar">false</property>
+          <property type="string" key="state">docked</property>
+        </gz-gui>
+        <engine>ogre2</engine>
+        <scene>scene</scene>
+        <ambient_light>0.4 0.4 0.4</ambient_light>
+        <background_color>0.8 0.8 0.8</background_color>
+        <camera_pose>1.2 0.6 1.6 0.0 0.4 -2.0</camera_pose>
+      </plugin>
+      <plugin filename="GzSceneManager" name="Scene Manager">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="WorldControl" name="World control">
+        <gz-gui>
+          <title>World control</title>
+          <property type="bool" key="showTitleBar">false</property>
+          <property type="bool" key="resizable">false</property>
+          <property type="double" key="height">72</property>
+          <property type="double" key="width">121</property>
+          <property type="double" key="z">1</property>
+          <property type="string" key="state">floating</property>
+        </gz-gui>
+        <play_pause>true</play_pause>
+        <step>true</step>
+        <start_paused>true</start_paused>
+        <use_event>true</use_event>
+      </plugin>
+      <plugin filename="ImageDisplay" name="Image Display">
+        <topic>/camera/image</topic>
+      </plugin>
+    </gui>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane><normal>0 0 1</normal><size>100 100</size></plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane><normal>0 0 1</normal><size>100 100</size></plane>
+          </geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Conveyor belt -->
+    <include>
+      <uri>model://conveyor</uri>
+      <name>conveyor</name>
+      <pose>0.65 0 0 0 0 0</pose>
+    </include>
+
+    <!-- Head 1 on the conveyor, with an ArUco marker on top -->
+    <include>
+      <uri>model://head</uri>
+      <name>head1</name>
+      <pose>0.65 0.0 0.16 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://aruco_marker_0_100mm</uri>
+      <name>marker1</name>
+      <pose>0.65 0.0 0.271 0 0 0</pose>
+    </include>
+
+    <!-- Head 2 on the conveyor, with an ArUco marker on top -->
+    <include>
+      <uri>model://head</uri>
+      <name>head2</name>
+      <pose>0.65 0.35 0.16 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://aruco_marker_0_100mm</uri>
+      <name>marker2</name>
+      <pose>0.65 0.35 0.271 0 0 0</pose>
+    </include>
+
+    <!-- Big box obstacle on the conveyor that the arm must dodge -->
+    <model name="obstacle_big">
+      <static>true</static>
+      <pose>0.65 -0.55 0.5 0 0 0</pose>
+      <link name="link">
+        <visual name="link_visual">
+          <geometry>
+            <box><size>0.5 0.5 0.8</size></box>
+          </geometry>
+          <material>
+            <diffuse>0.7 0.2 0.2 1</diffuse>
+          </material>
+        </visual>
+        <collision name="link_collision">
+          <geometry>
+            <box><size>0.5 0.5 0.8</size></box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+  </world>
+</sdf>

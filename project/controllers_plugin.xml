@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<library path="project">
+  <class name="project/ProjectController"
+         type="project::ProjectController"
+         base_class_type="controller_interface::ControllerInterface">
+    <description>
+      Merged final-project controller: visual servoing to ArUco heads on a conveyor,
+      potential-field obstacle avoidance, and impedance compliance control for patting.
+    </description>
+  </class>
+</library>
